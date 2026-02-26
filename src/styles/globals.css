@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --brand-50: #FFCCBC;
+  --brand-100: #FFAB91;
+  --brand-200: #FF8A65;
+  --brand-300: #fa7d57;
+  --brand-600: #D84315;
+  --brand-700: #BF360C;
+}
+
+::selection {
+  background-color: var(--brand-300);
+  color: white;
+  text-shadow: none;
+}
+
+::-moz-selection {
+  background-color: var(--brand-300);
+  color: white;
+  text-shadow: none;
+}
+
+/* ---------product detailes---------- */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 250ms ease-out;
+}
