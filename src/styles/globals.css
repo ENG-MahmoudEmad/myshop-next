@@ -131,3 +131,114 @@ select:-webkit-autofill {
   -webkit-text-fill-color: #111827 !important; /* zinc-900 */
   caret-color: #111827 !important;
 }
+
+
+/* ===== myshop PhoneInput styling ===== */
+.myshop-phone {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.myshop-phone .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.myshop-phone .PhoneInputCountrySelect {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #18181b; /* zinc-900 */
+  cursor: pointer;
+}
+
+/* dropdown (native) best-effort styling */
+.myshop-phone .PhoneInputCountrySelect option {
+  background: white;
+  color: #18181b;
+}
+
+/* input itself */
+.myshop-phone .PhoneInputInput {
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 14px;
+  color: #18181b;
+}
+
+.myshop-phone .PhoneInputInput::placeholder {
+  color: #a1a1aa; /* zinc-400 */
+}
+
+/* ===== myshop: react-international-phone styling ===== */
+
+.myshop-phone-ri {
+  width: 100%;
+}
+
+/* remove any inner borders/backgrounds */
+.myshop-phone-ri input {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* country button inside wrapper */
+.myshop-phone-ri__btn {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin-right: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  cursor: pointer !important;
+}
+
+/* fix: make dropdown appear over everything and aligned to the field */
+.myshop-phone-ri__dropdown {
+  margin-top: 10px !important;
+  border-radius: 20px !important;
+
+  background: #ffffff !important;  /* 👈 أبيض صافي */
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12) !important;
+
+  max-height: 260px !important;   /* 👈 هذا مهم للسكرول */
+  overflow-y: auto !important;    /* 👈 سكرول */
+
+  z-index: 9999 !important;
+}
+
+/* dropdown items */
+.myshop-phone-ri__dropdown * {
+  font-size: 14px !important;
+}
+
+.myshop-phone-ri__dropdown .react-international-phone-country-selector__dropdown__list-item {
+  padding: 10px 12px !important;
+}
+
+.myshop-phone-ri__dropdown .react-international-phone-country-selector__dropdown__list-item:hover {
+  background: rgba(255, 255, 255, 0.55) !important;
+}
+
+.myshop-phone-ri__dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.myshop-phone-ri__dropdown::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 10px;
+}
+
+.myshop-phone-ri__dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.25);
+}

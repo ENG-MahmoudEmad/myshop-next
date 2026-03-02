@@ -158,14 +158,6 @@ const playErrorSound = () => {
             autoComplete="current-password"
             {...register("password")}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            className="text-xs text-zinc-500 transition-all duration-300 ease-out hover:text-zinc-900"
-            aria-label="Toggle password visibility"
-          >
-            👁
-          </button>
         </div>
 
         {errors.password?.message ? (

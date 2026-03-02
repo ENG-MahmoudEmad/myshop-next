@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import AuthMarketingSide from "@/features/auth/components/AuthMarketingSide";
 import SignUpForm from "@/features/auth/components/SignUpForm";
 
@@ -13,7 +15,6 @@ export default function SignUpScreen() {
 
       <div className="relative mx-auto w-full max-w-6xl px-4 py-6 lg:py-8">
         <div className="grid gap-8 lg:min-h-[calc(100vh-64px)] lg:items-center lg:grid-cols-2">
-          
           {/* Left (desktop only) */}
           <div className="hidden lg:block">
             <AuthMarketingSide />
@@ -22,7 +23,6 @@ export default function SignUpScreen() {
           {/* Right */}
           <section className="lg:justify-self-end">
             <div className="mx-auto w-full max-w-md rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-5 lg:p-5 xl:p-6 lg:mx-0">
-              
               <header className="mb-6 text-center">
                 <div className="mx-auto mb-3 w-fit rounded-full bg-white/65 backdrop-blur-md border border-white/20 px-5 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
                   <span className="text-lg font-semibold">
@@ -31,9 +31,7 @@ export default function SignUpScreen() {
                   </span>
                 </div>
 
-                <h1 className="text-2xl font-semibold">
-                  Create your account
-                </h1>
+                <h1 className="text-2xl font-semibold">Create your account</h1>
                 <p className="mt-2 text-sm text-zinc-600">
                   Start your journey with myshop today.
                 </p>
@@ -44,12 +42,12 @@ export default function SignUpScreen() {
               <div className="mt-6 border-t border-zinc-200 pt-4 text-center">
                 <p className="text-sm text-zinc-600">
                   Already have an account?{" "}
-                  <a
+                  <Link
                     href="/login"
                     className="font-semibold text-[var(--brand-600)] underline underline-offset-4 hover:text-[var(--brand-700)] transition-all duration-300 ease-out"
                   >
                     Sign in
-                  </a>
+                  </Link>
                 </p>
               </div>
             </div>
@@ -65,7 +63,6 @@ export default function SignUpScreen() {
                 </p>
               </div>
             </div>
-
           </section>
         </div>
       </div>

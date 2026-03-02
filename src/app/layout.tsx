@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/styles/globals.css";
 import "react-toastify/dist/ReactToastify.css";
+import ToastProvider from "@/providers/ToastProvider"; // ✅ add
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-zinc-900`}
       >
+        <ToastProvider /> {/* ✅ global container */}
         {children}
       </body>
     </html>
