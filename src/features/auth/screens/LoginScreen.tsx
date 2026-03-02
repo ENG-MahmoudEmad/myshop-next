@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import AuthMarketingSide from "@/features/auth/components/AuthMarketingSide";
 import AuthSocialButtons from "@/features/auth/components/AuthSocialButtons";
 import LoginForm from "@/features/auth/components/LoginForm";
@@ -21,7 +23,8 @@ export default function LoginScreen() {
 
           {/* Right side */}
           <section className="lg:justify-self-end">
-              <div className="mx-auto w-full max-w-md rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-5 lg:p-5 xl:p-6 lg:mx-0">              <header className="mb-6 text-center">
+            <div className="mx-auto w-full max-w-md rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-5 lg:p-5 xl:p-6 lg:mx-0">
+              <header className="mb-6 text-center">
                 <div className="mx-auto mb-3 w-fit rounded-full bg-white/65 backdrop-blur-md border border-white/20 px-5 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
                   <span className="text-lg font-semibold tracking-tight">
                     <span className="text-[var(--brand-600)]">my</span>
@@ -50,12 +53,12 @@ export default function LoginScreen() {
               <div className="mt-6 border-t border-zinc-200 pt-4 text-center">
                 <p className="text-sm text-zinc-600">
                   New to myshop?{" "}
-                  <a
+                  <Link
                     href="/signup"
                     className="font-semibold text-[var(--brand-600)] underline underline-offset-4 hover:text-[var(--brand-700)] transition-all duration-300 ease-out"
                   >
                     Create an account
-                  </a>
+                  </Link>
                 </p>
 
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-zinc-500">
@@ -76,16 +79,16 @@ export default function LoginScreen() {
             </div>
 
             {/* Mobile marketing hint */}
-          <div className="mt-6 lg:hidden mx-auto w-full max-w-md">
-            <div className="rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-5">
-              <p className="text-sm font-semibold text-zinc-900">
-                Fresh groceries delivered
-              </p>
-              <p className="mt-1 text-xs text-zinc-600">
-                Free delivery • Secure payment • 24/7 support
-              </p>
+            <div className="mt-6 lg:hidden mx-auto w-full max-w-md">
+              <div className="rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-5">
+                <p className="text-sm font-semibold text-zinc-900">
+                  Fashion & tech, delivered fast
+                </p>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Secure payment • Easy returns • 24/7 support
+                </p>
+              </div>
             </div>
-          </div>
           </section>
         </div>
       </div>
