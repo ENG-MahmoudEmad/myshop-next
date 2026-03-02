@@ -1,4 +1,4 @@
-import CategoriesScreen from "@/features/products/screens/CategoriesScreen";
+import CategoriesScreen from "@/features/categories/screens/CategoriesScreen";
 
 export default function Page() {
   return <CategoriesScreen />;

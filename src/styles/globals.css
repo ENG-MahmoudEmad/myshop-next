@@ -37,3 +37,97 @@
 .animate-fadeIn {
   animation: fadeIn 250ms ease-out;
 }
+
+
+/* ============================= */
+/*      MYSHOP PREMIUM SCROLL   */
+/* ============================= */
+
+/* Chrome / Edge / Safari */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 204, 188, 0.18);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--brand-600),
+    var(--brand-700)
+  );
+  border-radius: 100px;
+
+  border: 2px solid rgba(255, 255, 255, 0.6);
+
+  transition: all 0.3s ease;
+}
+
+/* Hover animation + glow */
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    var(--brand-700),
+    var(--brand-600)
+  );
+
+  box-shadow:
+  inset 0 0 6px rgba(255,255,255,0.4),
+  0 0 10px rgba(216, 67, 21, 0.4);
+
+  transform: scale(1.05);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-600) rgba(255, 204, 188, 0.18);
+}
+
+
+/* MyShop loader top-bar animation */
+@keyframes myshopbar {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+.animate-myshopbar {
+  animation: myshopbar 1.1s ease-in-out infinite;
+}
+
+
+/* Remove ugly Chrome autofill background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.7) inset !important;
+  box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.7) inset !important;
+  -webkit-text-fill-color: #111827 !important; /* zinc-900 */
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+
+
+/* Edge / Chrome Autofill fix — match bg-white/70 */
+.newsletter-email:-webkit-autofill,
+.newsletter-email:-webkit-autofill:hover,
+.newsletter-email:-webkit-autofill:focus,
+.newsletter-email:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.7) inset !important;
+  box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.7) inset !important;
+
+  -webkit-text-fill-color: #111827 !important; /* zinc-900 */
+  caret-color: #111827 !important;
+}
