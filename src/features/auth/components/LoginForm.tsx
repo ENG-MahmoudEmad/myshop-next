@@ -19,38 +19,7 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
-// ✅ اختياري: لو بدك صوت عند الخطأ
-const ENABLE_ERROR_SOUND = true;
-
-const playErrorSound = () => {
-  if (!ENABLE_ERROR_SOUND) return;
-
-  // حط ملف صوت هنا: public/sounds/error.mp3
-  const audio = new Audio("/sounds/error.mp3");
-  audio.volume = 0.5;
-
-  // بعض المتصفحات ممكن تمنع التشغيل أحيانًا، فبنخليه safe
-  audio.play().catch(() => {});
-};
-
-
 export default function LoginForm() {
-  let errorAudio: HTMLAudioElement | null = null;
-
-const playErrorSound = () => {
-  try {
-    if (!errorAudio) {
-      errorAudio = new Audio("/sounds/error.mp3");
-      errorAudio.volume = 0.5;
-    }
-
-    errorAudio.currentTime = 0; // يعيد الصوت من البداية لو ضغط بسرعة
-    errorAudio.play().catch(() => {});
-  } catch {
-    // ignore
-  }
-};
-
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -90,34 +59,35 @@ const playErrorSound = () => {
         onSuccess: (data) => {
           if (data?.token) saveToken(data.token);
 
-          toast.success("Welcome back 👋", {
-            autoClose: 2500,
-          });
+          // ✅ success toast (ToastProvider will play success sound)
+          toast.success("Welcome back 👋", { autoClose: 2500 });
 
           router.replace("/");
         },
-        onError: (error: any) => {
-  const message =
-    error?.response?.data?.message ||
-    error?.response?.data?.errors?.[0]?.msg ||
-    "Invalid email or password";
+        onError: (err: any) => {
+          const message =
+            err?.response?.data?.message ||
+            err?.response?.data?.errors?.[0]?.msg ||
+            "Invalid email or password";
 
-  playErrorSound();
-
-  toast.error(message, {
-    autoClose: 4000,
-  });
-},
+          // ✅ error toast (ToastProvider will play error sound)
+          toast.error(String(message), { autoClose: 4000 });
+        },
       }
     );
   };
 
   return (
     <form className="space-y-4 lg:space-y-3" onSubmit={handleSubmit(onSubmit)}>
+      {/* (اختياري) لو بدك تعرض error داخل الفورم */}
+      {apiErrorMessage ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {apiErrorMessage}
+        </div>
+      ) : null}
+
       <div className="space-y-2">
-        <label className="text-sm font-semibold text-zinc-900">
-          Email Address
-        </label>
+        <label className="text-sm font-semibold text-zinc-900">Email Address</label>
 
         <div className={inputWrap}>
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-600)]" />
@@ -137,9 +107,7 @@ const playErrorSound = () => {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-semibold text-zinc-900">
-            Password
-          </label>
+          <label className="text-sm font-semibold text-zinc-900">Password</label>
 
           <Link
             href="/forgot-password"

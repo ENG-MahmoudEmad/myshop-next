@@ -17,8 +17,19 @@ const passwordRules = {
   lower: (s: string) => /[a-z]/.test(s),
   upper: (s: string) => /[A-Z]/.test(s),
   number: (s: string) => /\d/.test(s),
-  special: (s: string) => /[^A-Za-z0-9]/.test(s),
+
+  // ✅ special = ASCII symbols فقط (مش العربي)
+  special: (s: string) =>
+    /[!@#$%^&*()_\-+=[\]{};':"\\|,.<>/?`~]/.test(s),
+
+  // ✅ ممنوع عربي/ايموجي/أي non-ASCII
+  asciiOnly: (s: string) => /^[\x00-\x7F]*$/.test(s),
+
+  // ✅ ممنوع مسافات
+  noSpaces: (s: string) => !/\s/.test(s),
 };
+
+const stripNonAscii = (s: string) => s.replace(/[^\x00-\x7F]/g, "");
 
 // ✅ Egyptian phone only: +2010XXXXXXXX / +2011XXXXXXXX / +2012XXXXXXXX / +2015XXXXXXXX
 const egyptPhoneRegex = /^\+201[0125]\d{8}$/;
@@ -32,11 +43,19 @@ const signUpSchema = z
     phone: z
       .string()
       .min(1, "Phone number is required")
-      .refine((v) => egyptPhoneRegex.test(v), "Use Egyptian number like +2010XXXXXXXX"),
+      .refine(
+        (v) => egyptPhoneRegex.test(v),
+        "Use Egyptian number like +2010XXXXXXXX"
+      ),
 
     password: z
       .string()
       .min(8, "Must be at least 8 characters")
+      .refine(
+        (v) => passwordRules.asciiOnly(v),
+        "Password must be English characters only (no Arabic)"
+      )
+      .refine((v) => passwordRules.noSpaces(v), "Password must not contain spaces")
       .refine((v) => passwordRules.lower(v), "Must contain lowercase letter")
       .refine((v) => passwordRules.upper(v), "Must contain uppercase letter")
       .refine((v) => passwordRules.number(v), "Must contain a number")
@@ -86,6 +105,8 @@ export default function SignUpForm() {
     register,
     handleSubmit,
     watch,
+    setValue,
+    trigger,
     formState: { errors, touchedFields },
   } = useForm<SignUpValues>({
     resolver: zodResolver(signUpSchema),
@@ -104,22 +125,28 @@ export default function SignUpForm() {
     shouldFocusError: true,
   });
 
-  const password = watch("password") || "";
+  const passwordValue = watch("password") || "";
+  const confirmValue = watch("confirmPassword") || "";
 
   const pwChecks = useMemo(() => {
     const checks = [
-      { ok: passwordRules.minLen(password), msg: "Must be at least 8 characters" },
-      { ok: passwordRules.upper(password), msg: "Must contain uppercase letter" },
-      { ok: passwordRules.lower(password), msg: "Must contain lowercase letter" },
-      { ok: passwordRules.number(password), msg: "Must contain a number" },
-      { ok: passwordRules.special(password), msg: "Must contain special character" },
+      { ok: passwordRules.minLen(passwordValue), msg: "Must be at least 8 characters" },
+      { ok: passwordRules.upper(passwordValue), msg: "Must contain uppercase letter" },
+      { ok: passwordRules.lower(passwordValue), msg: "Must contain lowercase letter" },
+      { ok: passwordRules.number(passwordValue), msg: "Must contain a number" },
+      { ok: passwordRules.special(passwordValue), msg: "Must contain special character" },
+
+      // اختياري: لو بدك تعرض شرط الإنجليزي:
+      // { ok: passwordRules.asciiOnly(passwordValue), msg: "English characters only (no Arabic)" },
+      // { ok: passwordRules.noSpaces(passwordValue), msg: "No spaces" },
     ];
+
     const passed = checks.filter((c) => c.ok).length;
     const total = checks.length;
     const percent = Math.round((passed / total) * 100);
     const firstFail = checks.find((c) => !c.ok)?.msg ?? "Strong password";
     return { passed, total, percent, firstFail };
-  }, [password]);
+  }, [passwordValue]);
 
   const strengthLabel =
     pwChecks.passed <= 2 ? "Weak" : pwChecks.passed <= 4 ? "Medium" : "Strong";
@@ -131,10 +158,11 @@ export default function SignUpForm() {
       ? "bg-orange-500/70"
       : "bg-green-600/70";
 
-  // ✅ avoid duplicate password error line
+  // avoid duplicate password error line
   const passwordError =
     touchedFields.password && errors.password?.message ? errors.password.message : null;
-  const showPasswordError = passwordError && passwordError !== pwChecks.firstFail;
+
+  const showPasswordError = Boolean(passwordError && passwordError !== pwChecks.firstFail);
 
   const onValid = (values: SignUpValues) => {
     const name = `${values.firstName} ${values.lastName}`.trim();
@@ -145,7 +173,7 @@ export default function SignUpForm() {
         email: values.email,
         password: values.password,
         rePassword: values.confirmPassword,
-        phone: values.phone, // ✅ must be Egyptian format +201...
+        phone: values.phone,
       },
       {
         onSuccess: (data) => {
@@ -274,26 +302,60 @@ export default function SignUpForm() {
         <FieldError message={touchedFields.email ? errors.email?.message : undefined} />
       </div>
 
-      {/* ✅ Phone (Egypt only) */}
-      <div className="space-y-2">
-        <label className="text-sm font-semibold text-zinc-900">
-          Phone Number <span className="text-[var(--brand-600)]">*</span>
-        </label>
+      {/* Phone (Egypt only) */}
+      {/* Phone (Egypt only) */}
+<div className="space-y-2">
+  <label className="text-sm font-semibold text-zinc-900">
+    Phone Number <span className="text-[var(--brand-600)]">*</span>
+  </label>
 
-        <div className={inputWrap}>
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-600)]" />
-          <input
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="+2010XXXXXXXX"
-            className={input}
-            {...register("phone")}
-          />
-        </div>
+  <div className={inputWrap}>
+    <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-600)]" />
 
-        <FieldError message={touchedFields.phone ? errors.phone?.message : undefined} />
-      </div>
+    <input
+      type="tel"
+      inputMode="numeric"
+      autoComplete="tel"
+      placeholder="+2010XXXXXXXX"
+      className={input}
+      value={watch("phone") || ""}
+      onChange={(e) => {
+        // يسمح فقط بـ + أول حرف + أرقام
+        let v = e.target.value;
+
+        // احذف أي شيء غير + أو رقم
+        v = v.replace(/[^\d+]/g, "");
+
+        // لو في أكثر من + خليه واحد وبأول النص
+        const hasPlus = v.startsWith("+");
+        v = v.replace(/\+/g, "");
+        v = hasPlus ? `+${v}` : v;
+
+        // لو المستخدم كتب + بمنتصف النص، بنرجعه لأول النص
+        if (v.includes("+") && !v.startsWith("+")) {
+          v = `+${v.replace(/\+/g, "")}`;
+        }
+
+        setValue("phone", v, { shouldDirty: true, shouldValidate: true });
+        trigger("phone");
+      }}
+      onPaste={(e) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData("text") || "";
+        let v = text.replace(/[^\d+]/g, "");
+
+        const hasPlus = v.startsWith("+");
+        v = v.replace(/\+/g, "");
+        v = hasPlus ? `+${v}` : v;
+
+        setValue("phone", v, { shouldDirty: true, shouldValidate: true });
+        trigger("phone");
+      }}
+    />
+  </div>
+
+  <FieldError message={touchedFields.phone ? errors.phone?.message : undefined} />
+</div>
 
       {/* Password */}
       <div className="space-y-2">
@@ -303,28 +365,34 @@ export default function SignUpForm() {
 
         <div className={inputWrap}>
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-600)]" />
+
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Create a strong password"
             className={input}
             autoComplete="new-password"
-            {...register("password")}
+            value={passwordValue}
+            onChange={(e) => {
+              const cleaned = stripNonAscii(e.target.value);
+              setValue("password", cleaned, { shouldDirty: true, shouldValidate: true });
+              // لو بدك التشييك يتحرك لحظيًا:
+              trigger("password");
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData.getData("text");
+              const next = stripNonAscii(passwordValue + text);
+              setValue("password", next, { shouldDirty: true, shouldValidate: true });
+              trigger("password");
+            }}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            className="text-xs text-zinc-500 transition-all duration-300 ease-out hover:text-zinc-900"
-            aria-label="Toggle password visibility"
-          >
-            👁
-          </button>
         </div>
 
         <div className="space-y-1">
           <div className="h-1.5 w-full rounded-full bg-zinc-200 overflow-hidden">
             <div
               className={`h-full rounded-full ${strengthBarClass} transition-all duration-300`}
-              style={{ width: `${pwChecks.passed ? Math.round((pwChecks.passed / pwChecks.total) * 100) : 0}%` }}
+              style={{ width: `${pwChecks.percent}%` }}
             />
           </div>
           <div className="flex items-center justify-between text-xs text-zinc-500">
@@ -348,21 +416,32 @@ export default function SignUpForm() {
 
         <div className={inputWrap}>
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-600)]" />
+
           <input
             type={showConfirm ? "text" : "password"}
             placeholder="Confirm your password"
             className={input}
             autoComplete="new-password"
-            {...register("confirmPassword")}
+            value={confirmValue}
+            onChange={(e) => {
+              const cleaned = stripNonAscii(e.target.value);
+              setValue("confirmPassword", cleaned, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+              trigger("confirmPassword");
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData.getData("text");
+              const next = stripNonAscii(confirmValue + text);
+              setValue("confirmPassword", next, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+              trigger("confirmPassword");
+            }}
           />
-          <button
-            type="button"
-            onClick={() => setShowConfirm((v) => !v)}
-            className="text-xs text-zinc-500 transition-all duration-300 ease-out hover:text-zinc-900"
-            aria-label="Toggle password visibility"
-          >
-            👁
-          </button>
         </div>
 
         <FieldError
@@ -381,7 +460,8 @@ export default function SignUpForm() {
             {...register("promoEmails")}
           />
           <span>
-            I&apos;d like to receive promotional emails about new products, discounts, and offers.
+            I&apos;d like to receive promotional emails about new products, discounts, and
+            offers.
           </span>
         </label>
 

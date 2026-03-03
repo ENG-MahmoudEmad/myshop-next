@@ -37,16 +37,13 @@ export default function ToastProvider() {
   useEffect(() => {
     initAudios();
 
-    // بعض المتصفحات بدها أول تفاعل مستخدم قبل ما تسمح بالصوت
     const unlock = () => initAudios();
     window.addEventListener("pointerdown", unlock, { once: true });
 
     const unsubscribe = toast.onChange((payload: any) => {
       if (!payload || payload.status !== "added") return;
 
-      // type غالبًا string: "success" | "error" | "info" | "warning" | "default"
       const t = String(payload.type || "").toLowerCase();
-
       if (t === "error") play(errorAudio);
       if (t === "success") play(successAudio);
     });
@@ -66,6 +63,10 @@ export default function ToastProvider() {
       pauseOnHover
       draggable
       theme="light"
+      style={{
+        marginTop: 65,   // ✅ تحت navbar
+        zIndex: 20000,   // ✅ فوق navbar z-[9999]
+      }}
     />
   );
 }
