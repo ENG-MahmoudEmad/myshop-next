@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +21,9 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = (searchParams.get("next") || "").trim();
+
   const [showPassword, setShowPassword] = useState(false);
 
   const inputWrap =
@@ -59,10 +62,14 @@ export default function LoginForm() {
         onSuccess: (data) => {
           if (data?.token) saveToken(data.token);
 
-          // ✅ success toast (ToastProvider will play success sound)
           toast.success("Welcome back 👋", { autoClose: 2500 });
 
-          router.replace("/");
+          // ✅ رجّع المستخدم للصفحة اللي كان فيها
+          if (next) {
+            router.replace(next);
+          } else {
+            router.replace("/");
+          }
         },
         onError: (err: any) => {
           const message =
@@ -70,7 +77,6 @@ export default function LoginForm() {
             err?.response?.data?.errors?.[0]?.msg ||
             "Invalid email or password";
 
-          // ✅ error toast (ToastProvider will play error sound)
           toast.error(String(message), { autoClose: 4000 });
         },
       }
@@ -79,7 +85,6 @@ export default function LoginForm() {
 
   return (
     <form className="space-y-4 lg:space-y-3" onSubmit={handleSubmit(onSubmit)}>
-      {/* (اختياري) لو بدك تعرض error داخل الفورم */}
       {apiErrorMessage ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {apiErrorMessage}
@@ -126,6 +131,14 @@ export default function LoginForm() {
             autoComplete="current-password"
             {...register("password")}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="text-xs text-zinc-500 transition-all duration-300 ease-out hover:text-zinc-900"
+            aria-label="Toggle password visibility"
+          >
+            👁
+          </button>
         </div>
 
         {errors.password?.message ? (

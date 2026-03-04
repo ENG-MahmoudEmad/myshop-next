@@ -1,4 +1,8 @@
 import { api } from "@/lib/axios";
+import type {
+  ProductsResponse,
+  ProductDetailsResponse,
+} from "../types/product.types";
 
 export type ProductsQuery = {
   page?: number;
@@ -8,15 +12,14 @@ export type ProductsQuery = {
   brand?: string;
   "price[gte]"?: number;
   "price[lte]"?: number;
-  // وغيرهم حسب doc
 };
 
 export async function getProducts(params: ProductsQuery = {}) {
-  const res = await api.get("/api/v1/products", { params });
+  const res = await api.get<ProductsResponse>("/products", { params });
   return res.data;
 }
 
 export async function getProductById(id: string) {
-  const res = await api.get(`/api/v1/products/${id}`);
+  const res = await api.get<ProductDetailsResponse>(`/products/${id}`);
   return res.data;
 }

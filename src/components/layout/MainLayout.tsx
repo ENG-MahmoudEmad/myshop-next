@@ -111,7 +111,7 @@ export default function MainLayout({ children }: Props) {
 
     if (isPrivateRoute && !token) {
       toastError("Please login first", { autoClose: 3000 });
-      router.replace("/login");
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
   }, [mounted, ready, isPrivateRoute, token, router, isAuthPage]);
 

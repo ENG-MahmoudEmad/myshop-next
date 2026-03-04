@@ -1,46 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import ProductCard from "@/features/home/components/ProductCard";
-
-const deals = [
-  {
-    id: "101",
-    name: "Fresh Strawberries (1kg)",
-    price: 6.5,
-    oldPrice: 8.0,
-    tag: "Sale",
-    image: "/products/p1.png",
-    rating: 4,
-  },
-  {
-    id: "102",
-    name: "Organic Avocado (3pcs)",
-    price: 5.25,
-    oldPrice: 6.0,
-    tag: "Hot",
-    image: "/products/p2.png",
-    rating: 4,
-  },
-  {
-    id: "103",
-    name: "Milk 2% (1L)",
-    price: 2.1,
-    oldPrice: 2.8,
-    tag: "Sale",
-    image: "/products/p3.png",
-    rating: 4,
-  },
-  {
-    id: "104",
-    name: "Croissants (6 pcs)",
-    price: 3.99,
-    oldPrice: 4.8,
-    tag: "Deal",
-    image: "/products/p4.png",
-    rating: 4,
-  },
-];
+import { useProducts } from "@/features/products/hooks/useProducts";
 
 export default function DealsSection() {
+  const { data, isLoading, isError } = useProducts({
+    limit: 4,
+    sort: "-createdAt",
+  });
+
+  const products = data?.data ?? [];
+
   return (
     <section className="space-y-8">
       <div className="flex items-center justify-between">
@@ -53,10 +24,35 @@ export default function DealsSection() {
         </Link>
       </div>
 
+      {isLoading && (
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
+          Loading deals...
+        </div>
+      )}
+
+      {isError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          Failed to load deals.
+        </div>
+      )}
+
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {deals.map((p) => (
-          <ProductCard key={p.id} {...p} />
-        ))}
+        {products.map((p) => {
+          const oldPrice = Math.round(p.price * 1.15 * 100) / 100;
+
+          return (
+            <ProductCard
+              key={p._id}
+              id={p._id}
+              name={p.title}
+              price={p.price}
+              oldPrice={oldPrice}
+              tag="Deal"
+              image={p.imageCover}
+              rating={p.ratingsAverage}
+            />
+          );
+        })}
       </div>
     </section>
   );

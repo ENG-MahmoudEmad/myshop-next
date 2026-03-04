@@ -1,40 +1,21 @@
+"use client";
+
 import Link from "next/link";
 import ProductCard from "@/features/home/components/ProductCard";
-
-const products = [
-  {
-    id: "201",
-    name: "Organic Bananas (1kg)",
-    price: 4.5,
-    image: "/products/p1.png",
-  },
-  {
-    id: "202",
-    name: "Fresh Tomatoes",
-    price: 3.2,
-    image: "/products/p2.png",
-  },
-  {
-    id: "203",
-    name: "Premium Coffee Beans",
-    price: 12.99,
-    image: "/products/p3.png",
-  },
-  {
-    id: "204",
-    name: "Cheddar Cheese Block",
-    price: 6.75,
-    image: "/products/p4.png",
-  },
-];
+import { useProducts } from "@/features/products/hooks/useProducts";
 
 export default function PopularProducts() {
+  const { data, isLoading, isError } = useProducts({
+    limit: 4,
+    sort: "-ratingsAverage",
+  });
+
+  const products = data?.data ?? [];
+
   return (
     <section className="space-y-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-zinc-900">
-          Popular Products
-        </h2>
+        <h2 className="text-2xl font-bold text-zinc-900">Popular Products</h2>
 
         <Link
           href="/search"
@@ -44,9 +25,28 @@ export default function PopularProducts() {
         </Link>
       </div>
 
+      {isLoading && (
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
+          Loading products...
+        </div>
+      )}
+
+      {isError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          Failed to load products.
+        </div>
+      )}
+
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {products.map((p) => (
-          <ProductCard key={p.id} {...p} />
+          <ProductCard
+            key={p._id}
+            id={p._id}
+            name={p.title}
+            price={p.price}
+            image={p.imageCover}
+            rating={p.ratingsAverage}
+          />
         ))}
       </div>
     </section>

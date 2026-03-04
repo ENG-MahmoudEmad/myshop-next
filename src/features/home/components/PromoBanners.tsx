@@ -13,7 +13,7 @@ export default function PromoBanners() {
             fill
             className="object-cover"
           />
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-700)]/35 via-[var(--brand-600)]/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-700)]/35 via-[var(--brand-600)]/40 to-transparent" />
         </div>
 
         <div className="relative z-10 p-8 sm:p-10">
@@ -23,16 +23,15 @@ export default function PromoBanners() {
 
           <h3 className="mt-4 text-3xl font-extrabold text-white">
             Up to{" "}
-
-            <span className="relative inline-block font-extrabold text-[var(--brand-100)] ">
-            <span className="absolute bottom-1 left-0 h-3 w-full bg-[var(--brand-600)]/40 -z-10 "></span>
-            50% OFF
-        </span>{" "}
-            on Fresh Picks
+            <span className="relative inline-block font-extrabold text-[var(--brand-100)]">
+              <span className="absolute bottom-1 left-0 -z-10 h-3 w-full bg-[var(--brand-600)]/40" />
+              50% OFF
+            </span>{" "}
+            on Style & Tech Picks
           </h3>
 
           <p className="mt-3 max-w-md text-sm text-white/90">
-            Stock up on your favorites with warm deals today.
+            Upgrade your look and gadgets with limited-time offers.
           </p>
 
           <Link
@@ -53,7 +52,7 @@ export default function PromoBanners() {
             fill
             className="object-cover"
           />
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-700)]/35 via-[var(--brand-600)]/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-700)]/35 via-[var(--brand-600)]/40 to-transparent" />
         </div>
 
         <div className="relative z-10 p-8 sm:p-10">
@@ -63,14 +62,14 @@ export default function PromoBanners() {
 
           <h3 className="mt-4 text-3xl font-extrabold text-white">
             Premium Quality{" "}
-        <span className="relative inline-block font-extrabold text-[var(--brand-600)] ">
-            <span className="absolute bottom-1 left-0 h-3 w-full bg-[var(--brand-50)]/40 -z-10 "></span>
-            Deals
-        </span>
+            <span className="relative inline-block font-extrabold text-[var(--brand-600)]">
+              <span className="absolute bottom-1 left-0 -z-10 h-3 w-full bg-[var(--brand-50)]/40" />
+              Deals
+            </span>
           </h3>
 
           <p className="mt-3 max-w-md text-sm text-white/90">
-            Discover hand-picked items with exclusive discounts.
+            Discover hand-picked apparel and electronics with exclusive offers.
           </p>
 
           <Link

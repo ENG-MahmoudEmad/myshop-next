@@ -242,3 +242,11 @@ select:-webkit-autofill {
 .myshop-phone-ri__dropdown::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.25);
 }
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  cursor: pointer;
+}
