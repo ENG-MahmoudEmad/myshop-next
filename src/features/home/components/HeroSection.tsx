@@ -105,7 +105,7 @@ export default function HeroSection() {
       aria-label="Hero slider"
     >
       {/* ✅ Fixed height across breakpoints */}
-      <div className="relative w-full h-[360px] sm:h-[430px] lg:h-[480px]">
+      <div className="relative w-full h-[480px] sm:h-[480px] lg:h-[480px]">
         {/* Slides */}
         {slides.map((s, i) => (
           <div
@@ -175,35 +175,33 @@ export default function HeroSection() {
         </button>
 
         {/* Content */}
-        <div className="relative z-10 h-full px-6 py-10 sm:px-10 sm:py-14 lg:px-12 lg:py-16">
+        <div className="relative z-10 h-full flex items-center px-6 sm:px-10 lg:px-12">
           {/* ✅ lock content block height so buttons don't jump between slides */}
-          <div className="max-w-xl text-white">
+          <div className="max-w-[640px] text-white">
             <p className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px] sm:text-xs font-semibold backdrop-blur">
               {current.badge}
             </p>
 
             {/* ✅ responsive title + min height */}
-            <h1 className="mt-4 text-3xl sm:text-5xl font-extrabold leading-tight tracking-tight min-h-[88px] sm:min-h-[120px]">
-              {current.title}
+<h1 className="mt-4 font-extrabold leading-tight tracking-tight text-[28px] sm:text-[40px] lg:text-[52px] min-h-[90px] sm:min-h-[120px] max-w-[620px]">              {current.title}
             </h1>
 
             {/* ✅ clamp + min height so paragraph doesn't change layout */}
-            <p className="mt-4 text-sm sm:text-lg text-white/90 line-clamp-2 min-h-[44px] sm:min-h-[56px]">
-              {current.desc}
+<p className="mt-4 text-[14px] sm:text-[16px] lg:text-[18px] text-white/90 max-w-[520px] line-clamp-2 min-h-[44px] sm:min-h-[56px]">              {current.desc}
             </p>
 
             {/* ✅ button row fixed spacing */}
-            <div className="mt-6 sm:mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link
+              <div className="mt-6 sm:mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Link
                 href="/search"
-                className="inline-flex cursor-pointer items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-[var(--brand-700)] transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
-              >
+                className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm sm:text-base font-semibold text-[var(--brand-700)] transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                >
                 Shop Now
               </Link>
 
               <Link
                 href="/brands"
-                className="inline-flex cursor-pointer items-center justify-center rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition-all duration-300 ease-out hover:bg-white/20"
+                className="inline-flex items-center justify-center rounded-full bg-white/10 px-7 py-3 text-sm sm:text-base font-semibold text-white backdrop-blur transition-all duration-300 hover:bg-white/20"
               >
                 View Brands
               </Link>
