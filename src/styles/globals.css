@@ -250,3 +250,8 @@ button {
 button:hover {
   cursor: pointer;
 }
+
+/* Make warning toast look like default (same as success), only change progress color */
+.Toastify__progress-bar--warning {
+  background: #f59e0b !important; /* amber-500 */
+}

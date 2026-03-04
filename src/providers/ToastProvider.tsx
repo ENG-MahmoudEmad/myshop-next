@@ -5,6 +5,7 @@ import { ToastContainer, toast } from "react-toastify";
 
 let errorAudio: HTMLAudioElement | null = null;
 let successAudio: HTMLAudioElement | null = null;
+let warningAudio: HTMLAudioElement | null = null;
 
 function initAudios() {
   try {
@@ -17,6 +18,11 @@ function initAudios() {
       successAudio = new Audio("/sounds/success.mp3");
       successAudio.volume = 0.5;
       successAudio.load();
+    }
+    if (!warningAudio) {
+      warningAudio = new Audio("/sounds/warning.mp3");
+      warningAudio.volume = 0.45;
+      warningAudio.load();
     }
   } catch {
     // ignore
@@ -46,6 +52,7 @@ export default function ToastProvider() {
       const t = String(payload.type || "").toLowerCase();
       if (t === "error") play(errorAudio);
       if (t === "success") play(successAudio);
+      if (t === "warning") play(warningAudio);
     });
 
     return () => {
@@ -64,8 +71,8 @@ export default function ToastProvider() {
       draggable
       theme="light"
       style={{
-        marginTop: 65,   // ✅ تحت navbar
-        zIndex: 20000,   // ✅ فوق navbar z-[9999]
+        marginTop: 65,
+        zIndex: 20000,
       }}
     />
   );

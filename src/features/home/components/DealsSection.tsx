@@ -6,7 +6,7 @@ import { useProducts } from "@/features/products/hooks/useProducts";
 
 export default function DealsSection() {
   const { data, isLoading, isError } = useProducts({
-    limit: 4,
+    limit: 40,
     sort: "-createdAt",
   });
 
@@ -15,7 +15,7 @@ export default function DealsSection() {
   return (
     <section className="space-y-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-zinc-900">Deals of the Day</h2>
+        <h2 className="text-2xl font-bold text-zinc-900">Featured Products</h2>
         <Link
           href="/search"
           className="text-sm font-semibold text-[var(--brand-600)] transition hover:text-[var(--brand-700)]"
@@ -26,30 +26,39 @@ export default function DealsSection() {
 
       {isLoading && (
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-          Loading deals...
+          Loading products...
         </div>
       )}
 
       {isError && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          Failed to load deals.
+          Failed to load products.
         </div>
       )}
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ✅ 5 cards on large screens */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {products.map((p) => {
-          const oldPrice = Math.round(p.price * 1.15 * 100) / 100;
+          // ✅ خصم “حقيقي” فقط لو الـ API فيه priceAfterDiscount
+          const priceAfterDiscount =
+            (p as any).priceAfterDiscount != null
+              ? Number((p as any).priceAfterDiscount)
+              : null;
+
+          const hasRealDiscount =
+            priceAfterDiscount != null && priceAfterDiscount > 0 && priceAfterDiscount < p.price;
 
           return (
             <ProductCard
               key={p._id}
               id={p._id}
               name={p.title}
-              price={p.price}
-              oldPrice={oldPrice}
-              tag="Deal"
+              price={hasRealDiscount ? priceAfterDiscount : p.price}
+              oldPrice={hasRealDiscount ? p.price : undefined}
+              // tag={hasRealDiscount ? "Sale" : undefined}
               image={p.imageCover}
               rating={p.ratingsAverage}
+              compact
             />
           );
         })}

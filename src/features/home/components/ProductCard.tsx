@@ -1,7 +1,20 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faHeart } from "@fortawesome/free-solid-svg-icons";
+import { faHeart, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { toastSuccess, toastError, toastWarning } from "@/lib/toast";
+
+import { useAuthToken } from "@/features/auth/hooks/useAuthToken";
+import {
+  useAddToWishlist,
+  getErrorMessage,
+} from "@/features/wishlist/hooks/useAddToWishlist";
+import { useAddToCart } from "@/features/cart/hooks/useAddToCart";
+import { useWishlistProducts } from "@/features/wishlist/hooks/useWishlistProducts";
 
 type Props = {
   id: string;
@@ -11,6 +24,7 @@ type Props = {
   tag?: string;
   image: string;
   rating?: number;
+  compact?: boolean; // smaller card for Featured grid
 };
 
 export default function ProductCard({
@@ -21,13 +35,139 @@ export default function ProductCard({
   tag,
   image,
   rating,
+  compact = false,
 }: Props) {
+  const qc = useQueryClient();
+  const { token, ready } = useAuthToken();
+
   const discount =
     oldPrice && oldPrice > price
       ? Math.round(((oldPrice - price) / oldPrice) * 100)
       : null;
 
   const fullStars = rating != null ? Math.floor(rating) : 0;
+
+  // ✅ optimistic local flag (instant)
+  const [localWishlist, setLocalWishlist] = useState(false);
+
+  // ✅ only fetch wishlist list when logged in
+  const wishlistQuery = useWishlistProducts(!!token);
+  const wishlistItems = wishlistQuery.data ?? [];
+
+  const isInWishlist = wishlistItems.some((x: any) => {
+    const pid = x?._id || x?.id || x?.product?._id || x?.product?.id;
+    return String(pid) === String(id);
+  });
+
+  const finalIsInWishlist = isInWishlist || localWishlist;
+
+  const addWishlist = useAddToWishlist();
+  const addCart = useAddToCart();
+
+  const ensureAuth = () => {
+    if (!ready) return { ok: false as const, reason: "Please wait a moment…" };
+    if (!token) return { ok: false as const, reason: "Please login to continue." };
+    return { ok: true as const };
+  };
+
+  const onAddToWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const auth = ensureAuth();
+    if (!auth.ok) {
+      toastError(auth.reason);
+      return;
+    }
+
+    // ✅ instant block
+    if (finalIsInWishlist) {
+      toastWarning("Already in your wishlist.");
+      return;
+    }
+
+    // ✅ instant UI
+    setLocalWishlist(true);
+
+    addWishlist.mutate(id, {
+      onSuccess: () => {
+        // ✅ update wishlist cache immediately
+        qc.setQueryData(["wishlist"], (old: any) => {
+          const arr = Array.isArray(old) ? old : [];
+
+          const exists = arr.some((x: any) => {
+            const pid = x?._id || x?.id || x?.product?._id || x?.product?.id;
+            return String(pid) === String(id);
+          });
+          if (exists) return arr;
+
+          return [...arr, { _id: id }];
+        });
+
+        // ✅ background refresh to get full objects
+        qc.invalidateQueries({ queryKey: ["wishlist"] });
+
+        toastSuccess("Added to wishlist.");
+      },
+
+      onError: (err: any) => {
+        // رجّع optimistic flag لو فشل
+        setLocalWishlist(false);
+
+        const msg = String(
+          err?.response?.data?.message || err?.message || "",
+        ).toLowerCase();
+        const status = err?.response?.status;
+
+        const already =
+          status === 409 ||
+          msg.includes("already") ||
+          msg.includes("exist") ||
+          msg.includes("added");
+
+        if (already) {
+          toastWarning("Already in your wishlist.");
+
+          // حتى لو السيرفر قال already، خلّي الكاش يعرف
+          qc.setQueryData(["wishlist"], (old: any) => {
+            const arr = Array.isArray(old) ? old : [];
+            const exists = arr.some((x: any) => {
+              const pid = x?._id || x?.id || x?.product?._id || x?.product?.id;
+              return String(pid) === String(id);
+            });
+            if (exists) return arr;
+            return [...arr, { _id: id }];
+          });
+
+          // وخلّيه true عشان الضغط بعدها يعطي warning فورًا
+          setLocalWishlist(true);
+          return;
+        }
+
+        toastError("Couldn't add to wishlist.");
+      },
+    });
+  };
+
+  const onAddToCart = () => {
+    const auth = ensureAuth();
+    if (!auth.ok) {
+      toastError(auth.reason);
+      return;
+    }
+
+    addCart.mutate(id, {
+      onSuccess: () => {
+        toastSuccess("Added to cart.");
+      },
+      onError: (err) => {
+        toastError(getErrorMessage(err, "Couldn't add to cart."));
+      },
+    });
+  };
+
+  const wishlistLoading = addWishlist.isPending;
+  const cartLoading = addCart.isPending;
 
   return (
     <div className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
@@ -44,19 +184,39 @@ export default function ProductCard({
           </span>
         ) : null}
 
-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-gradient-to-b from-zinc-50 to-white">
-          {/* Wishlist Button (UI only for now) */}
+        <div
+          className={[
+            "relative w-full overflow-hidden bg-gradient-to-b from-zinc-50 to-white",
+            compact ? "aspect-[1/1]" : "aspect-[4/5]",
+          ].join(" ")}
+        >
+          {/* Wishlist */}
           <button
             type="button"
-            className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-zinc-700 backdrop-blur transition-all duration-300 hover:bg-[var(--brand-600)] hover:text-white hover:scale-110 active:scale-95"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            aria-label="Wishlist"
-            title="Wishlist"
+            className={[
+              "absolute right-3 top-3 z-20 flex items-center justify-center rounded-full",
+              "bg-white/70 text-zinc-700 backdrop-blur transition-all duration-300",
+              "hover:bg-[var(--brand-600)] hover:text-white active:scale-95",
+              "cursor-pointer",
+              compact ? "h-7 w-7" : "h-8 w-8",
+
+              // hidden until hover (or while loading)
+              "opacity-0 translate-y-1 pointer-events-none",
+              "group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto",
+
+              // show it if loading
+              wishlistLoading ? "opacity-100 translate-y-0 pointer-events-auto" : "",
+            ].join(" ")}
+            onClick={onAddToWishlist}
+            aria-label="Add to wishlist"
+            title="Add to wishlist"
+            disabled={wishlistLoading}
           >
-            <FontAwesomeIcon icon={faHeart} style={{ width: 18, height: 18 }} />
+            {wishlistLoading ? (
+              <FontAwesomeIcon icon={faSpinner} spin style={{ width: 16, height: 16 }} />
+            ) : (
+              <FontAwesomeIcon icon={faHeart} style={{ width: 16, height: 16 }} />
+            )}
           </button>
 
           <Link href={`/product/${id}`} className="block h-full w-full">
@@ -64,7 +224,10 @@ export default function ProductCard({
               src={image}
               alt={name}
               fill
-              className="object-contain p-4 transition-transform duration-500 group-hover:scale-[1.06]"
+              className={[
+                "object-contain transition-transform duration-500 group-hover:scale-[1.06]",
+                compact ? "p-3" : "p-4",
+              ].join(" ")}
             />
 
             <div className="absolute inset-0 bg-black/0 transition duration-300 group-hover:bg-black/30" />
@@ -78,10 +241,13 @@ export default function ProductCard({
         </div>
       </div>
 
-      <div className="p-5">
+      <div className={compact ? "p-4" : "p-5"}>
         <Link href={`/product/${id}`}>
           <h3 className="line-clamp-1 text-sm font-semibold text-zinc-900 transition hover:text-[var(--brand-700)]">
-            {name}
+            {(() => {
+              const short = name.split(" ").slice(0, 3).join(" ");
+              return short.length < name.length ? `${short}…` : short;
+            })()}
           </h3>
 
           {rating != null ? (
@@ -91,30 +257,53 @@ export default function ProductCard({
                   {i < fullStars ? "★" : "☆"}
                 </span>
               ))}
-              <span className="ml-2 text-xs text-zinc-500">
-                {rating.toFixed(1)}
-              </span>
+              <span className="ml-2 text-xs text-zinc-500">{rating.toFixed(1)}</span>
             </div>
           ) : null}
         </Link>
 
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-lg font-bold text-[var(--brand-700)]">
-            ${price.toFixed(2)}
-          </span>
-          {oldPrice ? (
-            <span className="text-sm text-zinc-500 line-through">
-              ${oldPrice.toFixed(2)}
-            </span>
-          ) : null}
-        </div>
+        {/* fixed height price area so button aligns across cards */}
+        <div className="mt-2 min-h-[44px] flex items-center gap-2">
+  <span
+    className={[
+      "text-lg font-bold text-[var(--brand-700)]",
+      "whitespace-nowrap leading-none",
+      "tabular-nums", // ✅ أرقام بنفس العرض (اختياري بس ممتاز)
+    ].join(" ")}
+  >
+    EGP {price.toFixed(2)}
+  </span>
+
+  {oldPrice ? (
+    <span className="text-sm text-zinc-500 line-through whitespace-nowrap leading-none tabular-nums">
+      EGP {oldPrice.toFixed(2)}
+    </span>
+  ) : (
+    <span className="text-sm text-transparent select-none whitespace-nowrap leading-none tabular-nums">
+      EGP 0000.00
+    </span>
+  )}
+</div>
 
         <button
           type="button"
-          className="mt-4 w-full rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-md active:scale-[0.98]"
-          onClick={() => {}}
+          className={[
+            compact ? "mt-3" : "mt-4",
+            "w-full rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white",
+            "transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-md active:scale-[0.98]",
+            "cursor-pointer disabled:cursor-not-allowed disabled:opacity-70",
+          ].join(" ")}
+          onClick={onAddToCart}
+          disabled={cartLoading}
         >
-          Add to cart
+          {cartLoading ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <FontAwesomeIcon icon={faSpinner} spin />
+              Adding…
+            </span>
+          ) : (
+            "Add to cart"
+          )}
         </button>
       </div>
     </div>

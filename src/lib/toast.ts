@@ -41,3 +41,7 @@ export function toastError(message: string, options?: any) {
   play("error");
   return toast.error(message, options);
 }
+
+export function toastWarning(message: string, options?: any) {
+  return toast.warning(message, options);
+}
