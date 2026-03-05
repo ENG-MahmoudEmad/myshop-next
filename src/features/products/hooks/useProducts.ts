@@ -1,20 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { getProducts, ProductsQuery } from "../api/productsApi";
 
-export const useProducts = (params?: ProductsQuery) => {
+type UseProductsOptions = {
+  staleTimeMs?: number;
+  gcTimeMs?: number;
+  enabled?: boolean;
+};
+
+export const useProducts = (params?: ProductsQuery, options?: UseProductsOptions) => {
   return useQuery({
     queryKey: ["products", params ?? {}],
     queryFn: () => getProducts(params ?? {}),
+    enabled: options?.enabled ?? true,
 
-    // ✅ cache قوي (الـ API عند Route نفسه عامل cache ~10h)
-    staleTime: 10 * 60 * 60 * 1000, // 10 hours
-    gcTime: 24 * 60 * 60 * 1000, // 24 hours keep in cache
+    // ✅ caching behavior (override per page/component)
+    staleTime: options?.staleTimeMs,
+    gcTime: options?.gcTimeMs,
 
-    // ✅ لا تعيد fetch بشكل مزعج
+    // ✅ stop annoying refetches
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-
     retry: 1,
   });
 };

@@ -194,19 +194,23 @@ export default function ProductCard({
           <button
             type="button"
             className={[
-              "absolute right-3 top-3 z-20 flex items-center justify-center rounded-full",
-              "bg-white/70 text-zinc-700 backdrop-blur transition-all duration-300",
-              "hover:bg-[var(--brand-600)] hover:text-white active:scale-95",
-              "cursor-pointer",
-              compact ? "h-7 w-7" : "h-8 w-8",
+  "absolute right-3 top-3 z-20 flex items-center justify-center rounded-full",
+  "bg-white/70 text-zinc-700 backdrop-blur transition-all duration-300",
+  "hover:bg-[var(--brand-600)] hover:text-white",
+  "active:scale-90 active:bg-[var(--brand-600)] active:text-white",
+  "cursor-pointer",
+  compact ? "h-7 w-7" : "h-8 w-8",
 
-              // hidden until hover (or while loading)
-              "opacity-0 translate-y-1 pointer-events-none",
-              "group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto",
+  // ✅ mobile: visible always
+  "opacity-100 translate-y-0 pointer-events-auto",
 
-              // show it if loading
-              wishlistLoading ? "opacity-100 translate-y-0 pointer-events-auto" : "",
-            ].join(" ")}
+  // ✅ md+ (tablet/laptop): hidden until hover
+  "md:opacity-0 md:translate-y-1 md:pointer-events-none",
+  "md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-hover:pointer-events-auto",
+
+  // ✅ keep visible while loading on any screen
+  wishlistLoading ? "opacity-100 translate-y-0 pointer-events-auto" : "",
+].join(" ")}
             onClick={onAddToWishlist}
             aria-label="Add to wishlist"
             title="Add to wishlist"
@@ -263,7 +267,7 @@ export default function ProductCard({
         </Link>
 
         {/* fixed height price area so button aligns across cards */}
-        <div className="mt-2 min-h-[44px] flex items-center gap-2">
+        <div className="mt-2 min-h-[44px] flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
   <span
     className={[
       "text-lg font-bold text-[var(--brand-700)]",
@@ -288,11 +292,13 @@ export default function ProductCard({
         <button
           type="button"
           className={[
-            compact ? "mt-3" : "mt-4",
-            "w-full rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white",
-            "transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-md active:scale-[0.98]",
-            "cursor-pointer disabled:cursor-not-allowed disabled:opacity-70",
-          ].join(" ")}
+  compact ? "mt-3" : "mt-4",
+  "w-full rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white",
+  "transition-transform duration-150 active:scale-[0.97]",
+  "hover:bg-[var(--brand-700)] hover:shadow-md",
+  "cursor-pointer disabled:cursor-not-allowed disabled:opacity-70",
+  "select-none touch-manipulation",
+].join(" ")}
           onClick={onAddToCart}
           disabled={cartLoading}
         >

@@ -4,11 +4,19 @@ import Link from "next/link";
 import ProductCard from "@/features/home/components/ProductCard";
 import { useProducts } from "@/features/products/hooks/useProducts";
 
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
 export default function PopularProducts() {
-  const { data, isLoading, isError } = useProducts({
+  const { data, isLoading, isError } = useProducts(
+  {
     limit: 4,
     sort: "-ratingsAverage",
-  });
+  },
+  {
+    staleTimeMs: THIRTY_DAYS,
+    gcTimeMs: THIRTY_DAYS,
+  }
+);
 
   const products = data?.data ?? [];
 
@@ -38,7 +46,7 @@ export default function PopularProducts() {
       )}
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {products.map((p) => (
+        {products.map((p: any) => (
           <ProductCard
             key={p._id}
             id={p._id}

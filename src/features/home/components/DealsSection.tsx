@@ -4,11 +4,19 @@ import Link from "next/link";
 import ProductCard from "@/features/home/components/ProductCard";
 import { useProducts } from "@/features/products/hooks/useProducts";
 
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
 export default function DealsSection() {
-  const { data, isLoading, isError } = useProducts({
+  const { data, isLoading, isError } = useProducts(
+  {
     limit: 40,
     sort: "-createdAt",
-  });
+  },
+  {
+    staleTimeMs: THIRTY_DAYS,
+    gcTimeMs: THIRTY_DAYS,
+  }
+);
 
   const products = data?.data ?? [];
 
@@ -36,17 +44,17 @@ export default function DealsSection() {
         </div>
       )}
 
-      {/* ✅ 5 cards on large screens */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {products.map((p) => {
-          // ✅ خصم “حقيقي” فقط لو الـ API فيه priceAfterDiscount
+        {products.map((p: any) => {
           const priceAfterDiscount =
             (p as any).priceAfterDiscount != null
               ? Number((p as any).priceAfterDiscount)
               : null;
 
           const hasRealDiscount =
-            priceAfterDiscount != null && priceAfterDiscount > 0 && priceAfterDiscount < p.price;
+            priceAfterDiscount != null &&
+            priceAfterDiscount > 0 &&
+            priceAfterDiscount < p.price;
 
           return (
             <ProductCard
@@ -55,7 +63,6 @@ export default function DealsSection() {
               name={p.title}
               price={hasRealDiscount ? priceAfterDiscount : p.price}
               oldPrice={hasRealDiscount ? p.price : undefined}
-              // tag={hasRealDiscount ? "Sale" : undefined}
               image={p.imageCover}
               rating={p.ratingsAverage}
               compact
