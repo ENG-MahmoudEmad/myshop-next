@@ -5,14 +5,21 @@ export const api = axios.create({
   baseURL: "https://ecommerce.routemisr.com/api/v1",
 });
 
-// ✅ Add token automatically
+// endpoints تعتبر "public" (لا نرسل token لها)
+const PUBLIC_PREFIXES = ["/products", "/categories", "/brands", "/subcategories"];
+
+// ✅ Add token ONLY for protected endpoints
 api.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
       config.headers = config.headers ?? {};
-      // Route API uses "token" header (not Authorization Bearer)
+
+      // ✅ Route sometimes expects token header
       (config.headers as any).token = token;
+
+      // ✅ and sometimes expects Authorization Bearer
+      (config.headers as any).Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -26,7 +33,6 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     const url = String(error?.config?.url || "");
 
-    // لا تعمل logout على أخطاء تسجيل الدخول/التسجيل نفسها
     const isAuthEndpoint =
       url.includes("/auth/signin") ||
       url.includes("/auth/signup") ||
@@ -34,11 +40,21 @@ api.interceptors.response.use(
       url.includes("/auth/verifyResetCode") ||
       url.includes("/auth/resetPassword");
 
-    if (typeof window !== "undefined" && status === 401 && !isAuthEndpoint) {
-      // امسح التوكن
+    // ✅ لا تعمل logout على 401 من endpoints العامة (احتياط)
+    const isPublicEndpoint =
+      url.includes("/products") ||
+      url.includes("/categories") ||
+      url.includes("/brands") ||
+      url.includes("/subcategories");
+
+    if (
+      typeof window !== "undefined" &&
+      status === 401 &&
+      !isAuthEndpoint &&
+      !isPublicEndpoint
+    ) {
       removeToken();
 
-      // Toast (بدون import مباشر لتفادي مشاكل SSR/Client)
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { toast } = require("react-toastify");
@@ -47,7 +63,6 @@ api.interceptors.response.use(
         // ignore
       }
 
-      // رجّع المستخدم للّوجين مع next
       const current =
         window.location.pathname + window.location.search + window.location.hash;
 
@@ -58,4 +73,4 @@ api.interceptors.response.use(
 
     return Promise.reject(error);
   }
-);
+); 

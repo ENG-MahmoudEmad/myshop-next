@@ -1,77 +1,406 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import ProductCard from "@/features/home/components/ProductCard";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHeart, faShareNodes } from "@fortawesome/free-solid-svg-icons";
+import { useRouter } from "next/navigation";
+
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { updateReviewApi, deleteReviewApi } from "@/features/reviews/api/reviews.api";
+
+import ProductCard from "@/features/home/components/ProductCard";
 import RecentlyViewed from "@/features/products/components/RecentlyViewed";
+
+import { useProduct } from "@/features/products/hooks/useProduct";
+import { useProducts } from "@/features/products/hooks/useProducts";
+
+import { useAddToCart } from "@/features/cart/hooks/useAddToCart";
+import {
+  useAddToWishlist,
+  useRemoveFromWishlist,
+  getWishlistErrorKind,
+} from "@/features/wishlist/hooks/useWishlistMutations";
+import { useWishlist } from "@/features/wishlist/hooks/useWishlist";
+
+import { toastError, toastSuccess } from "@/lib/toast";
+import { addRecentlyViewed } from "@/features/products/utils/recentlyViewed";
+import { useProductReviews } from "@/features/reviews/hooks/useProductReviews";
+import { useAddReview } from "@/features/reviews/hooks/useAddReview";
+
+import { getToken } from "@/features/auth/utils/auth-storage";
 
 type Props = { id: string };
 
-const mockImages = [
-  "/products/p1.png",
-  "/products/p2.png",
-  "/products/p3.png",
-  "/products/p4.png",
-];
+const GLASS =
+  "bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)]";
 
-const related = [
-  { id: "201", name: "Organic Bananas (1kg)", price: 1.99, oldPrice: 2.5, image: "/products/p2.png", rating: 4 },
-  { id: "202", name: "Organic Fresh Apples (1kg)", price: 3.99, oldPrice: 4.69, image: "/products/p3.png", rating: 5 },
-  { id: "203", name: "Fresh Broccoli (1pc)", price: 1.79, image: "/products/p4.png", rating: 4 },
-  { id: "204", name: "Greek Yogurt (32oz)", price: 4.49, image: "/products/p1.png", rating: 4 },
-];
+function decodeJwtPayload(token: string) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
+function getUserIdFromTokenSafe() {
+  const t = getToken();
+  if (!t) return null;
+  const p = decodeJwtPayload(t);
+  return p?.id ?? p?._id ?? p?.userId ?? p?.sub ?? null;
+}
+
+function getApiErrorMessage(e: any) {
+  const d = e?.response?.data;
+  // RouteMisr أحياناً بيرجع errors: [{ msg: "..." }]
+  const firstErr =
+    Array.isArray(d?.errors) && d.errors.length ? d.errors[0]?.msg : null;
+
+  return (
+    firstErr ||
+    d?.message ||
+    e?.message ||
+    "Something went wrong"
+  );
+}
+
+function isAlreadyReviewedError(e: any) {
+  const msg = String(getApiErrorMessage(e) || "").toLowerCase();
+  // غطّي كذا صيغة محتملة
+  return (
+    msg.includes("already") && msg.includes("review") ||
+    msg.includes("reviewed") ||
+    msg.includes("already reviewed")
+  );
+}
 
 export default function ProductDetailsScreen({ id }: Props) {
-  const [activeImage, setActiveImage] = useState(mockImages[0]);
-  const [weight, setWeight] = useState<"250g" | "500g" | "1kg">("250g");
+  const router = useRouter();
+
+  const [activeImage, setActiveImage] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState<"details" | "reviews" | "shipping">("details");
 
-  const price = 4.99;
-  const oldPrice = 6.99;
+  // ---------- Product ----------
+  const productQ = useProduct(id, { staleTimeMs: 60_000, gcTimeMs: 10 * 60_000 });
+  const product: any =
+  (productQ.data as any)?.data?.data ??
+  (productQ.data as any)?.data ??
+  (productQ.data as any);
+
+  // ---------- Reviews ----------
+  const reviewsQ = useProductReviews(id);
+
+  const qc = useQueryClient();
+  const myUserId = useMemo(() => getUserIdFromTokenSafe(), []);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const updateReviewM = useMutation({
+    mutationFn: (args: { reviewId: string; review: string; rating: number }) =>
+      updateReviewApi(args.reviewId, { review: args.review, rating: args.rating }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-reviews", id] }),
+  });
+
+  const deleteReviewM = useMutation({
+    mutationFn: (reviewId: string) => deleteReviewApi(reviewId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-reviews", id] }),
+  });
+
+  const reviewsList: any[] = useMemo(() => {
+    const d: any = reviewsQ.data as any;
+    const list = d?.data ?? d?.results ?? d ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [reviewsQ.data]);
+
+  const reviewsCount = reviewsList.length;
+
+  // ✅ my review (لو موجود)
+  const myReview = useMemo(() => {
+    if (!myUserId) return null;
+    return (
+      reviewsList.find((r: any) => {
+        const reviewUserId = r?.user?._id ?? r?.user?.id ?? null;
+        return !!reviewUserId && String(reviewUserId) === String(myUserId);
+      }) ?? null
+    );
+  }, [reviewsList, myUserId]);
+
+  // ✅ Add / Edit review state
+  const [reviewText, setReviewText] = useState("");
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const addReviewM = useAddReview(id);
+
+  const canReview = !!getToken();
+
+  const onSubmitReview = async () => {
+    if (!getToken()) {
+      toastError("Please login to write a review.", { autoClose: 2500 });
+      return;
+    }
+
+    const text = reviewText.trim();
+    const rating = Math.min(5, Math.max(1, Number(reviewRating || 0)));
+
+    if (!text) {
+      toastError("Please write your review.", { autoClose: 2500 });
+      return;
+    }
+
+    try {
+      // ✅ لو مش في وضع edit لكن عنده review أصلاً → دخّله edit بدل fail
+      if (!editingId && myReview?._id) {
+        setEditingId(String(myReview._id));
+        setReviewText(
+          String(myReview?.review ?? myReview?.comment ?? myReview?.message ?? "")
+        );
+        setReviewRating(Number(myReview?.rating ?? 5));
+        toastError("You already reviewed this product. Edit your review instead.", {
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      if (editingId) {
+        await updateReviewM.mutateAsync({ reviewId: editingId, review: text, rating });
+        toastSuccess("Review updated", { autoClose: 2000 });
+        setEditingId(null);
+      } else {
+        await addReviewM.mutateAsync({ review: text, rating });
+        toastSuccess("Review posted", { autoClose: 2000 });
+      }
+
+      setReviewText("");
+      setReviewRating(5);
+    } catch (e: any) {
+      // ✅ لو فعلاً API رجع already reviewed
+      if (isAlreadyReviewedError(e) && myReview?._id) {
+        setEditingId(String(myReview._id));
+        setReviewText(
+          String(myReview?.review ?? myReview?.comment ?? myReview?.message ?? "")
+        );
+        setReviewRating(Number(myReview?.rating ?? 5));
+        toastError("You already reviewed this product. Edit your review instead.", {
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      toastError(getApiErrorMessage(e), { autoClose: 3500 });
+    }
+  };
+
+  // ---------- Related ----------
+  const relatedQ = useProducts(
+    { limit: 20, sort: "-createdAt" },
+    { staleTimeMs: 30_000, gcTimeMs: 5 * 60_000 }
+  );
+
+  const related = useMemo(() => {
+    const list = (relatedQ.data?.data ?? []) as any[];
+    return list.filter((p) => p?._id !== id).slice(0, 8);
+  }, [relatedQ.data, id]);
+
+  // ---------- Wishlist ----------
+  const wishlistQ = useWishlist();
+  const addWishM = useAddToWishlist();
+  const removeWishM = useRemoveFromWishlist();
+
+  const wishlistIds = useMemo(() => {
+    const root: any = wishlistQ.data as any;
+    const maybeList =
+      root?.data ??
+      root?.data?.data ??
+      root?.data?.products ??
+      root?.products ??
+      [];
+
+    const list = Array.isArray(maybeList) ? maybeList : [];
+
+    return new Set(list.map((x: any) => x?._id ?? x?.id ?? x?.product?._id).filter(Boolean));
+  }, [wishlistQ.data]);
+
+  const isInWishlist = !!product?._id && wishlistIds.has(product._id);
+
+  const onWishlistToggle = async () => {
+    if (!product?._id) return;
+
+    try {
+      if (isInWishlist) {
+        await removeWishM.mutateAsync(product._id);
+        toastSuccess("Removed from wishlist", { autoClose: 2000 });
+      } else {
+        await addWishM.mutateAsync(product._id);
+        toastSuccess("Added to wishlist", { autoClose: 2000 });
+      }
+    } catch (e: any) {
+      const kind = getWishlistErrorKind(e);
+      if (kind === "already") {
+        toastError("Already in your wishlist", { autoClose: 2500 });
+        return;
+      }
+      toastError(getApiErrorMessage(e), { autoClose: 3500 });
+    }
+  };
+
+  // ---------- Price ----------
+  const unitPrice = useMemo(() => {
+    const pad = product?.priceAfterDiscount;
+    const price = product?.price;
+    if (pad != null && Number(pad) > 0 && Number(pad) < Number(price)) return Number(pad);
+    return Number(price ?? 0);
+  }, [product?.priceAfterDiscount, product?.price]);
+
+  const oldPrice = useMemo(() => {
+    const pad = product?.priceAfterDiscount;
+    const price = product?.price;
+    if (pad != null && Number(pad) > 0 && Number(pad) < Number(price)) return Number(price);
+    return undefined;
+  }, [product?.priceAfterDiscount, product?.price]);
+
+  const totalPrice = useMemo(() => unitPrice * qty, [unitPrice, qty]);
 
   const discount = useMemo(() => {
-    return oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : null;
-  }, [oldPrice, price]);
+    if (!oldPrice) return null;
+    if (oldPrice <= unitPrice) return null;
+    return Math.round(((oldPrice - unitPrice) / oldPrice) * 100);
+  }, [oldPrice, unitPrice]);
+
+  // ---------- Images ----------
+  const images: string[] = useMemo(() => {
+    const arr = Array.isArray(product?.images) ? product.images.filter(Boolean) : [];
+    const cover = product?.imageCover ? [product.imageCover] : [];
+    const all = [...cover, ...arr].filter(Boolean);
+    return Array.from(new Set(all));
+  }, [product?.images, product?.imageCover]);
+
+  useEffect(() => {
+    if (!activeImage && images.length) setActiveImage(images[0]);
+  }, [images, activeImage]);
+
+  // ---------- Recently Viewed ----------
+  useEffect(() => {
+    if (!product?._id) return;
+
+    addRecentlyViewed({
+      id: product._id,
+      title: product.title ?? "Product",
+      image: product.imageCover ?? images[0] ?? "",
+      price: unitPrice,
+      category: product.category?.name ?? "Product",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?._id]);
+
+  // ---------- Breadcrumb short title ----------
+  const breadcrumbTitle = useMemo(() => {
+    const t = String(product?.title ?? "");
+    if (!t) return `Product #${id}`;
+    const parts = t.split(" ").filter(Boolean);
+    return parts.slice(0, 3).join(" ");
+  }, [product?.title, id]);
+
+  // ---------- Cart ----------
+  const addCartM = useAddToCart();
+  const inStock = (product?.quantity ?? 1) > 0;
+
+  const onAddToCart = async () => {
+    if (!product?._id) return;
+    try {
+      await addCartM.mutateAsync({ productId: product._id, count: qty });
+      toastSuccess(`Added to cart (x${qty})`, { autoClose: 2000 });
+    } catch (e: any) {
+      toastError(getApiErrorMessage(e), { autoClose: 3500 });
+    }
+  };
+
+  const onBuyNow = () => router.push("/cart");
+
+  // ---------- Share ----------
+  const onShare = async () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    if (!url) return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: product?.title ?? "MyShop Product", url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toastSuccess("Link copied", { autoClose: 2000 });
+    } catch {
+      toastError("Could not share link", { autoClose: 2000 });
+    }
+  };
+
+  // ---------- Loading / Error ----------
+  if (productQ.isLoading) {
+    return (
+      <div className={`${GLASS} rounded-3xl p-8 text-center`}>
+        <p className="text-sm font-semibold text-zinc-900">Loading product…</p>
+      </div>
+    );
+  }
+
+  if (productQ.isError || !product) {
+    return (
+      <div className={`${GLASS} rounded-3xl p-8 text-center`}>
+        <p className="text-lg font-extrabold text-zinc-900">Failed to load product</p>
+        <p className="mt-2 text-sm text-zinc-600">Please try again.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       {/* Breadcrumb */}
       <div className="text-sm text-zinc-500">
         <Link className="hover:text-[var(--brand-700)]" href="/">Home</Link>
         <span className="mx-2">/</span>
-        <Link className="hover:text-[var(--brand-700)]" href="/categories">Categories</Link>
+        <Link className="hover:text-[var(--brand-700)]" href="/search">Search</Link>
         <span className="mx-2">/</span>
-        <span className="text-zinc-700">Product #{id}</span>
+        <span className="text-zinc-700">{breadcrumbTitle}</span>
       </div>
 
       {/* Top Section */}
-      <section className="grid gap-8 lg:grid-cols-2">
+      <section className="grid gap-8 lg:grid-cols-2 lg:items-start">
         {/* Gallery */}
         <div className="space-y-4">
-<div className="group relative aspect-square overflow-hidden rounded-3xl border border-white/40 bg-white/70 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.05)]">            <Image
-  src={activeImage}
-  alt="Product"
-  fill
-  className="object-cover transition-transform duration-500 group-hover:scale-105"
-/>
+          <div className={`${GLASS} group relative aspect-square overflow-hidden rounded-3xl`}>
+            {activeImage ? (
+              <Image
+                src={activeImage}
+                alt={product.title ?? "Product"}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="h-full w-full animate-pulse bg-white/40" />
+            )}
           </div>
 
           <div className="grid grid-cols-4 gap-3">
-            {mockImages.map((src) => {
+            {images.slice(0, 8).map((src) => {
               const active = src === activeImage;
               return (
                 <button
                   key={src}
+                  type="button"
                   onClick={() => setActiveImage(src)}
                   className={[
                     "relative aspect-square overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-300",
                     active
-                    ? "border-[var(--brand-600)] shadow-[0_0_0_4px_rgba(255,171,145,0.35)]"
-                    : "border-zinc-200 hover:-translate-y-0.5 hover:shadow-md"
+                      ? "border-[var(--brand-600)] shadow-[0_0_0_4px_rgba(255,171,145,0.35)]"
+                      : "border-zinc-200 hover:-translate-y-0.5 hover:shadow-md",
                   ].join(" ")}
                 >
                   <Image src={src} alt="Thumb" fill className="object-cover" />
@@ -81,44 +410,75 @@ export default function ProductDetailsScreen({ id }: Props) {
           </div>
         </div>
 
-        {/* Info Panel (glassy) */}
-        <div className="rounded-3xl border border-white/40 bg-white/70 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-6 sm:p-8">
+        {/* Info Panel */}
+        <div className={`${GLASS} rounded-3xl p-6 sm:p-8`}>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <span className="inline-flex rounded-full bg-[var(--brand-50)] px-3 py-1 text-xs font-semibold text-[var(--brand-700)]">
-                In Stock
+              <span
+                className={[
+                  "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                  inStock ? "bg-[var(--brand-50)] text-[var(--brand-700)]" : "bg-zinc-100 text-zinc-700",
+                ].join(" ")}
+              >
+                {inStock ? "In Stock" : "Out of Stock"}
               </span>
 
               <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-zinc-900">
-                Organic Fresh Strawberries
+                {product.title}
               </h1>
 
-              {/* Rating */}
               <div className="mt-2 flex items-center gap-2 text-sm text-zinc-600">
                 <div className="text-[var(--brand-600)]">
-                  {"★".repeat(4)}{"☆".repeat(1)}
-                </div>    
-                <span>4.5</span>
-                <span className="text-zinc-400">(149 reviews)</span>
+                  {"★".repeat(Math.round(product?.ratingsAverage ?? 0))}
+                  {"☆".repeat(Math.max(0, 5 - Math.round(product?.ratingsAverage ?? 0)))}
+                </div>
+                <span>{Number(product?.ratingsAverage ?? 0).toFixed(1)}</span>
+                <span className="text-zinc-400">({product?.ratingsQuantity ?? 0} reviews)</span>
               </div>
             </div>
 
-            {/* Icons placeholder */}
             <div className="flex gap-2">
-  <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-zinc-800 backdrop-blur transition hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)] active:scale-95">
-    <FontAwesomeIcon icon={faHeart} size="sm" />
-  </button>
+              <button
+                type="button"
+                onClick={onWishlistToggle}
+                className={[
+                  "flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition active:scale-95",
+                  isInWishlist
+                    ? "bg-[var(--brand-600)] text-white hover:bg-[var(--brand-700)]"
+                    : "bg-white/70 text-zinc-800 hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)]",
+                ].join(" ")}
+                aria-label="Toggle wishlist"
+              >
+                <FontAwesomeIcon icon={faHeart} size="sm" />
+              </button>
 
-  <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-zinc-800 backdrop-blur transition hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)] active:scale-95">
-    <FontAwesomeIcon icon={faShareNodes} size="sm" />
-  </button>
-</div>
+              <button
+                type="button"
+                onClick={onShare}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-zinc-800 backdrop-blur transition hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)] active:scale-95"
+                aria-label="Share"
+              >
+                <FontAwesomeIcon icon={faShareNodes} size="sm" />
+              </button>
+            </div>
           </div>
 
           {/* Price */}
-          <div className="mt-5 flex items-end gap-3">
-            <div className="text-3xl font-extrabold text-[var(--brand-700)]">${price.toFixed(2)}</div>
-            <div className="pb-1 text-sm text-zinc-500 line-through">${oldPrice.toFixed(2)}</div>
+          <div className="mt-5 flex flex-wrap items-end gap-3">
+            <div className="text-3xl font-extrabold text-[var(--brand-700)]">
+              {totalPrice.toLocaleString("en-US")} EGP
+            </div>
+
+            <div className="pb-1 text-xs text-zinc-500">
+              ( {unitPrice.toLocaleString("en-US")} EGP / each )
+            </div>
+
+            {oldPrice ? (
+              <div className="pb-1 text-sm text-zinc-500 line-through">
+                {oldPrice.toLocaleString("en-US")} EGP
+              </div>
+            ) : null}
+
             {discount ? (
               <span className="mb-1 inline-flex rounded-full bg-[var(--brand-50)] px-3 py-1 text-xs font-bold text-[var(--brand-700)]">
                 Save {discount}%
@@ -127,38 +487,16 @@ export default function ProductDetailsScreen({ id }: Props) {
           </div>
 
           <p className="mt-4 text-sm leading-6 text-zinc-600">
-            Sweet, juicy, and bursting with flavor. Perfect for snacking, baking, or adding to your favorite smoothies.
+            {(product?.description as string) ?? "No description available yet."}
           </p>
 
-          {/* Weight */}
-          <div className="mt-6 flex items-center gap-3">
-            <span className="w-20 text-sm font-semibold text-zinc-800">Weight:</span>
-            <div className="flex flex-wrap gap-2">
-              {(["250g", "500g", "1kg"] as const).map((w) => {
-                const active = w === weight;
-                return (
-                  <button
-                    key={w}
-                    onClick={() => setWeight(w)}
-                    className={[
-                      "rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
-                      active
-                        ? "bg-[var(--brand-600)] text-white shadow-md"
-                        : "bg-white/80 backdrop-blur border border-zinc-200 text-zinc-800 hover:border-[var(--brand-200)] hover:shadow-sm",
-                    ].join(" ")}
-                  >
-                    {w}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Quantity */}
-          <div className="mt-5 flex items-center gap-3">
-            <span className="w-20 text-sm font-semibold text-zinc-800">Qty:</span>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <span className="w-12 text-sm font-semibold text-zinc-800">Qty:</span>
+
             <div className="flex items-center rounded-full border border-zinc-200 bg-white/80 backdrop-blur">
               <button
+                type="button"
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
                 className="h-10 w-10 rounded-full text-lg text-zinc-700 transition hover:bg-[var(--brand-50)]"
               >
@@ -166,6 +504,7 @@ export default function ProductDetailsScreen({ id }: Props) {
               </button>
               <div className="w-12 text-center text-sm font-semibold text-zinc-800">{qty}</div>
               <button
+                type="button"
                 onClick={() => setQty((q) => q + 1)}
                 className="h-10 w-10 rounded-full text-lg text-zinc-700 transition hover:bg-[var(--brand-50)]"
               >
@@ -173,15 +512,31 @@ export default function ProductDetailsScreen({ id }: Props) {
               </button>
             </div>
 
-            <span className="text-xs text-zinc-500">Only 12 items left in stock</span>
+            <span className="text-xs text-zinc-500">
+              {inStock ? `Available: ${product?.quantity ?? "-"}` : "Not available now"}
+            </span>
           </div>
 
           {/* Actions */}
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button className="rounded-full bg-[var(--brand-600)] px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]">
-              Add to cart
+            <button
+              type="button"
+              onClick={onAddToCart}
+              disabled={addCartM.isPending || !inStock}
+              className={[
+                "rounded-full px-6 py-3 text-sm font-semibold text-white transition-all duration-300",
+                "bg-[var(--brand-600)] hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]",
+                (!inStock || addCartM.isPending) ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
+            >
+              {addCartM.isPending ? "Adding…" : "Add to cart"}
             </button>
-            <button className="rounded-full border border-zinc-200 bg-white/80 backdrop-blur px-6 py-3 text-sm font-semibold text-zinc-900 transition-all duration-300 hover:shadow-md active:scale-[0.98]">
+
+            <button
+              type="button"
+              onClick={onBuyNow}
+              className="rounded-full border border-zinc-200 bg-white/80 backdrop-blur px-6 py-3 text-sm font-semibold text-zinc-900 transition-all duration-300 hover:shadow-md active:scale-[0.98]"
+            >
               Buy now
             </button>
           </div>
@@ -189,72 +544,196 @@ export default function ProductDetailsScreen({ id }: Props) {
       </section>
 
       {/* Tabs */}
-      <section className="rounded-3xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+      <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
         <div className="relative flex flex-wrap gap-2 border-b border-zinc-200 bg-[var(--brand-50)]/50 px-4 py-3">
-  {[
-    { key: "details", label: "Product Details" },
-    { key: "reviews", label: "Reviews (149)" },
-    { key: "shipping", label: "Shipping & Returns" },
-  ].map((t) => {
-    const active = tab === (t.key as any);
-    return (
-      <button
-        key={t.key}
-        onClick={() => setTab(t.key as any)}
-        className={[
-          "relative rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
-          active
-            ? "text-[var(--brand-700)]"
-            : "text-zinc-600 hover:text-[var(--brand-700)]",
-        ].join(" ")}
-      >
-        {t.label}
+          {[
+            { key: "details", label: "Product Details" },
+            { key: "reviews", label: `Reviews (${reviewsCount})` },
+            { key: "shipping", label: "Shipping & Returns" },
+          ].map((t) => {
+            const active = tab === (t.key as any);
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key as any)}
+                className={[
+                  "relative rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
+                  active ? "text-[var(--brand-700)]" : "text-zinc-600 hover:text-[var(--brand-700)]",
+                ].join(" ")}
+              >
+                {t.label}
+                <span
+                  className={[
+                    "absolute left-1/2 -bottom-1 h-[3px] w-10 -translate-x-1/2 rounded-full bg-[var(--brand-600)] transition-all duration-300",
+                    active ? "opacity-100" : "opacity-0",
+                  ].join(" ")}
+                />
+              </button>
+            );
+          })}
+        </div>
 
-        {/* Underline indicator */}
-        <span
-          className={[
-            "absolute left-1/2 -bottom-1 h-[3px] w-10 -translate-x-1/2 rounded-full bg-[var(--brand-600)] transition-all duration-300",
-            active ? "opacity-100" : "opacity-0",
-          ].join(" ")}
-        />
-      </button>
-    );
-  })}
-</div>
-
-        <div className="p-6 sm:p-8 animate-fadeIn">
+        <div className="p-6 sm:p-8">
           {tab === "details" ? (
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div>
-                <h3 className="text-sm font-bold text-zinc-900">Product Description</h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-600">
-                  Our organic strawberries are carefully grown without synthetic pesticides or fertilizers, ensuring the purest taste.
-                </p>
-
-                <h4 className="mt-6 text-sm font-bold text-zinc-900">Benefits</h4>
-                <ul className="mt-3 list-disc pl-5 text-sm text-zinc-600 space-y-2">
-                  <li>Rich in vitamins C and K</li>
-                  <li>Good source of fiber and antioxidants</li>
-                  <li>Supports heart health</li>
-                </ul>
-              </div>
-
-              <div className="rounded-2xl border border-zinc-200 bg-[var(--brand-50)]/40 p-5">
-                <h4 className="text-sm font-bold text-zinc-900">Product Details</h4>
-                <div className="mt-4 space-y-3 text-sm text-zinc-600">
-                  <div className="flex justify-between"><span>Origin</span><span className="font-semibold text-zinc-800">California, USA</span></div>
-                  <div className="flex justify-between"><span>Storage</span><span className="font-semibold text-zinc-800">Refrigerate upon arrival</span></div>
-                  <div className="flex justify-between"><span>Shelf Life</span><span className="font-semibold text-zinc-800">5–7 days</span></div>
-                </div>
-              </div>
+            <div className="text-sm text-zinc-600 leading-7">
+              {(product?.description as string) ?? "No details available yet."}
             </div>
           ) : tab === "reviews" ? (
-            <div className="text-sm text-zinc-600">
-              Reviews UI (later we connect API).
+            <div className="space-y-6">
+              {/* Add / Edit Review Box */}
+              <div className="rounded-3xl border border-zinc-200 bg-white/60 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-extrabold text-zinc-900">
+                    {editingId ? "Edit your review" : "Write a review"}
+                  </p>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const n = i + 1;
+                      const active = n <= reviewRating;
+                      return (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setReviewRating(n)}
+                          className={[
+                            "text-lg transition active:scale-95",
+                            active ? "text-[var(--brand-600)]" : "text-zinc-300 hover:text-zinc-400",
+                          ].join(" ")}
+                          aria-label={`Rate ${n}`}
+                        >
+                          ★
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder={canReview ? "Share your thoughts about this product..." : "Login to write a review..."}
+                  disabled={!canReview || addReviewM.isPending || updateReviewM.isPending}
+                  className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 bg-white/80 p-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-[var(--brand-300)]"
+                  rows={3}
+                />
+
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  {editingId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(null);
+                        setReviewText("");
+                        setReviewRating(5);
+                      }}
+                      className="rounded-full border border-zinc-200 bg-white px-5 py-2 text-xs font-semibold text-zinc-900 hover:shadow-sm"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={onSubmitReview}
+                    disabled={!canReview || addReviewM.isPending || updateReviewM.isPending}
+                    className={[
+                      "rounded-full px-6 py-2 text-xs font-semibold text-white transition-all duration-300 active:scale-95",
+                      "bg-[var(--brand-600)] hover:bg-[var(--brand-700)]",
+                      (!canReview || addReviewM.isPending || updateReviewM.isPending) ? "opacity-60 cursor-not-allowed" : "",
+                    ].join(" ")}
+                  >
+                    {editingId
+                      ? (updateReviewM.isPending ? "Updating..." : "Update review")
+                      : (addReviewM.isPending ? "Posting..." : "Post review")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Reviews List */}
+              {reviewsQ.isLoading ? (
+                <p className="text-sm text-zinc-600">Loading reviews…</p>
+              ) : reviewsQ.isError ? (
+                <p className="text-sm text-red-600">Failed to load reviews.</p>
+              ) : !reviewsCount ? (
+                <p className="text-sm text-zinc-600">No reviews yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {reviewsList.slice(0, 10).map((r: any) => {
+                    const reviewUserId = r?.user?._id ?? r?.user?.id ?? null;
+                    const isMine =
+                      !!myUserId && !!reviewUserId && String(reviewUserId) === String(myUserId);
+
+                    return (
+                      <div
+                        key={r?._id ?? `${r?.user?._id ?? "u"}-${r?.createdAt ?? Math.random()}`}
+                        className="rounded-2xl border border-zinc-200 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-bold text-zinc-900">
+                            {r?.user?.name ?? "User"}
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            {Number(r?.rating ?? 0).toFixed(1)} ★
+                          </p>
+                        </div>
+
+                        <p className="mt-2 text-sm text-zinc-600">
+                          {r?.review ?? r?.comment ?? r?.title ?? r?.message ?? "—"}
+                        </p>
+
+                        {isMine ? (
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(String(r._id));
+                                setReviewText(String(r?.review ?? r?.comment ?? r?.message ?? ""));
+                                setReviewRating(Number(r?.rating ?? 5));
+                              }}
+                              className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-900 hover:shadow-sm"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await deleteReviewM.mutateAsync(String(r._id));
+                                  toastSuccess("Review deleted", { autoClose: 2000 });
+
+                                  if (editingId === String(r._id)) {
+                                    setEditingId(null);
+                                    setReviewText("");
+                                    setReviewRating(5);
+                                  }
+                                } catch (e: any) {
+                                  toastError(getApiErrorMessage(e), { autoClose: 3500 });
+                                }
+                              }}
+                              className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-red-700 hover:shadow-sm"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
-            <div className="text-sm text-zinc-600">
-              Shipping & Returns UI (later we connect API).
+            <div className="space-y-3 text-sm text-zinc-600 leading-7">
+              <p>
+                <span className="font-semibold text-zinc-900">Shipping:</span> Delivery typically takes 2–5 business days.
+              </p>
+              <p>
+                <span className="font-semibold text-zinc-900">Returns:</span> Return eligible items within 14 days if unused.
+              </p>
+              <p className="text-xs text-zinc-500">More detailed policy can be added later.</p>
             </div>
           )}
         </div>
@@ -264,18 +743,29 @@ export default function ProductDetailsScreen({ id }: Props) {
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-extrabold text-zinc-900">You may also like</h2>
-          <div className="flex gap-2">
-            <button className="h-10 w-10 rounded-full border border-zinc-200 bg-white transition hover:bg-[var(--brand-50)]">‹</button>
-            <button className="h-10 w-10 rounded-full border border-zinc-200 bg-white transition hover:bg-[var(--brand-50)]">›</button>
-          </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {related.map((p) => (
-            <ProductCard key={p.id} {...p} />
-          ))}
+          {related.map((p: any) => {
+            const pad = p.priceAfterDiscount != null ? Number(p.priceAfterDiscount) : null;
+            const hasRealDiscount = pad != null && pad > 0 && pad < p.price;
+
+            return (
+              <ProductCard
+                key={p._id}
+                id={p._id}
+                name={p.title}
+                price={hasRealDiscount ? pad : p.price}
+                oldPrice={hasRealDiscount ? p.price : undefined}
+                image={p.imageCover}
+                rating={p.ratingsAverage}
+                compact
+              />
+            );
+          })}
         </div>
       </section>
+
       <RecentlyViewed />
     </div>
   );

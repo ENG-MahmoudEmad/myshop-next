@@ -1,7 +1,10 @@
-import ProductDetailsScreen from "@/features/products/screens/ProductDetailsScreen";
+import ProductDetailsClient from "./ProductDetailsClient";
 
-type Props = { params: { id: string } };
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
-export default function Page({ params }: Props) {
-  return <ProductDetailsScreen id={params.id} />;
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  return <ProductDetailsClient id={id} />;
 }

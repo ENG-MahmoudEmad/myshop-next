@@ -5,6 +5,9 @@ export type Product = {
   imageCover: string;
   ratingsAverage?: number;
   ratingsQuantity?: number;
+
+  // ✅ add this
+  quantity?: number;
 };
 
 export type ProductsResponse = {

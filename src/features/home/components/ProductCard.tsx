@@ -156,14 +156,17 @@ export default function ProductCard({
       return;
     }
 
-    addCart.mutate(id, {
-      onSuccess: () => {
-        toastSuccess("Added to cart.");
-      },
-      onError: (err) => {
-        toastError(getErrorMessage(err, "Couldn't add to cart."));
-      },
-    });
+    addCart.mutate(
+  { productId: id, count: 1 },
+  {
+    onSuccess: () => {
+      toastSuccess("Added to cart.");
+    },
+    onError: (err) => {
+      toastError(getErrorMessage(err, "Couldn't add to cart."));
+    },
+  }
+);
   };
 
   const wishlistLoading = addWishlist.isPending;

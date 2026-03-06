@@ -18,3 +18,17 @@ export const removeFromWishlistApi = async (productId: string) => {
   const { data } = await api.delete(`/wishlist/${productId}`);
   return data;
 };
+
+
+
+// import { api } from "@/lib/axios";
+
+// export async function addToWishlist(productId: string) {
+//   const { data } = await api.post("/wishlist", { productId });
+//   return data;
+// }
+
+// export async function removeFromWishlist(productId: string) {
+//   const { data } = await api.delete(`/wishlist/${productId}`);
+//   return data;
+// }

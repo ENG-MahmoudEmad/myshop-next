@@ -4,11 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faFacebookF,
-  faInstagram,
-  faTwitter,
-} from "@fortawesome/free-brands-svg-icons";
+import { faFacebookF, faInstagram, faTwitter } from "@fortawesome/free-brands-svg-icons";
 import {
   faBars,
   faXmark,
@@ -45,7 +41,6 @@ function NavLink({
 }) {
   const pathname = usePathname();
   const active = pathname === href;
-  
 
   return (
     <Link
@@ -75,6 +70,9 @@ export default function MainLayout({ children }: Props) {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
+  // ✅ Navbar search
+  const [navQuery, setNavQuery] = useState("");
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -87,21 +85,18 @@ export default function MainLayout({ children }: Props) {
     pathname === "/verify-reset-code" ||
     pathname === "/reset-password";
 
-    // 1️⃣ احسب private routes أولًا
-    // ✅ global private routes
-    const isPrivateRoute = useMemo(() => {
-      if (!pathname) return false;
-      return (
-        pathname.startsWith("/account") ||
-        pathname.startsWith("/orders") ||
-        pathname === "/wishlist" ||
-        pathname === "/checkout"
-      );
-    }, [pathname]);
-    // 2️⃣ بعده احسب shouldBlockPrivate
-    const shouldBlockPrivate =
-  !isAuthPage && isPrivateRoute && (!ready || !token);
+  // ✅ global private routes
+  const isPrivateRoute = useMemo(() => {
+    if (!pathname) return false;
+    return (
+      pathname.startsWith("/account") ||
+      pathname.startsWith("/orders") ||
+      pathname === "/wishlist" ||
+      pathname === "/checkout"
+    );
+  }, [pathname]);
 
+  const shouldBlockPrivate = !isAuthPage && isPrivateRoute && (!ready || !token);
 
   // ✅ guard (wait for mounted + ready)
   useEffect(() => {
@@ -113,7 +108,7 @@ export default function MainLayout({ children }: Props) {
       toastError("Please login first", { autoClose: 3000 });
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [mounted, ready, isPrivateRoute, token, router, isAuthPage]);
+  }, [mounted, ready, isPrivateRoute, token, router, isAuthPage, pathname]);
 
   // close profile dropdown on outside click
   useEffect(() => {
@@ -131,6 +126,32 @@ export default function MainLayout({ children }: Props) {
     setProfileOpen(false);
     setMenuOpen(false);
   }, [pathname]);
+
+  // ✅ keep navbar search synced with URL (?q=...)
+  useEffect(() => {
+    if (!mounted) return;
+    if (typeof window === "undefined") return;
+
+    const q = new URLSearchParams(window.location.search).get("q") ?? "";
+    setNavQuery(q);
+  }, [mounted, pathname]);
+
+  const submitNavbarSearch = (qRaw: string) => {
+    const q = qRaw.trim();
+
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (q) params.set("q", q);
+    else params.delete("q");
+
+    // reset page whenever a new search happens
+    params.delete("page");
+
+    router.push(`/search?${params.toString()}`);
+    setMenuOpen(false); // ✅ close mobile menu if open
+  };
 
   const handleLogout = () => {
     removeToken();
@@ -168,9 +189,7 @@ export default function MainLayout({ children }: Props) {
     "bg-white/98 backdrop-blur-md border border-white/60",
     "shadow-[0_18px_60px_rgba(0,0,0,0.12)]",
     "transition-all duration-200",
-    profileOpen
-      ? "opacity-100 translate-y-0"
-      : "pointer-events-none opacity-0 -translate-y-1",
+    profileOpen ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-1",
   ].join(" ");
 
   return (
@@ -180,11 +199,7 @@ export default function MainLayout({ children }: Props) {
         { type: "item", label: "Forward", onClick: () => history.forward() },
         { type: "item", label: "Reload", onClick: () => location.reload() },
         { type: "sep" },
-        {
-          type: "item",
-          label: "Print / Save as PDF",
-          onClick: () => window.print(),
-        },
+        { type: "item", label: "Print / Save as PDF", onClick: () => window.print() },
         {
           type: "item",
           label: "Download Page (HTML)",
@@ -194,10 +209,7 @@ export default function MainLayout({ children }: Props) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `${(document.title || "myshop").replaceAll(
-              " ",
-              "-"
-            )}.html`;
+            a.download = `${(document.title || "myshop").replaceAll(" ", "-")}.html`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -205,32 +217,18 @@ export default function MainLayout({ children }: Props) {
           },
         },
         { type: "sep" },
-        {
-          type: "item",
-          label: "Copy Page Link",
-          onClick: () => navigator.clipboard.writeText(location.href),
-        },
-        {
-          type: "item",
-          label: "Copy Page Title",
-          onClick: () => navigator.clipboard.writeText(document.title),
-        },
+        { type: "item", label: "Copy Page Link", onClick: () => navigator.clipboard.writeText(location.href) },
+        { type: "item", label: "Copy Page Title", onClick: () => navigator.clipboard.writeText(document.title) },
         { type: "sep" },
         {
           type: "item",
           label: "View Page Source",
-          onClick: () =>
-            window.open(
-              `view-source:${location.href}`,
-              "_blank",
-              "noopener,noreferrer"
-            ),
+          onClick: () => window.open(`view-source:${location.href}`, "_blank", "noopener,noreferrer"),
         },
         {
           type: "item",
           label: "Developer Tools",
-          onClick: () =>
-            window.open("/devtools", "_blank", "noopener,noreferrer"),
+          onClick: () => window.open("/devtools", "_blank", "noopener,noreferrer"),
         },
       ]}
     >
@@ -239,12 +237,10 @@ export default function MainLayout({ children }: Props) {
         <header className="sticky top-0 relative z-[9999] backdrop-blur-md bg-white/65 border-b border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
           <div className="mx-auto flex h-16 w-[80%] items-center gap-3">
             {/* Logo */}
-            <Link
-              href="/"
-              className="text-lg font-extrabold tracking-tight text-[var(--brand-700)]"
-            >
+            <Link href="/" className="text-lg font-extrabold tracking-tight text-[var(--brand-700)]">
               MyShop
             </Link>
+            
 
             {/* Links (desktop) */}
             <nav className="hidden items-center gap-1 lg:flex">
@@ -253,15 +249,25 @@ export default function MainLayout({ children }: Props) {
               ))}
             </nav>
 
-            {/* Search (desktop) */}
+            {/* Search (desktop) ✅ */}
             <div className="hidden flex-1 lg:block">
-              <div className="relative mx-auto max-w-md">
-                <input
-                  placeholder="Search products..."
-                  className="w-full rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm outline-none transition focus:border-[var(--brand-200)] focus:ring-4 focus:ring-[var(--brand-50)]"
-                />
-              </div>
-            </div>
+  <form
+    className="relative mx-auto max-w-md"
+    onSubmit={(e) => {
+      e.preventDefault();
+      const q = navQuery.trim();
+      if (!q) return;
+      router.push(`/search?q=${encodeURIComponent(q)}`);
+    }}
+  >
+    <input
+      value={navQuery}
+      onChange={(e) => setNavQuery(e.target.value)}
+      placeholder="Search products..."
+      className="w-full rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm outline-none transition focus:border-[var(--brand-200)] focus:ring-4 focus:ring-[var(--brand-50)]"
+    />
+  </form>
+</div>
 
             {/* Mobile Menu Button */}
             <button
@@ -302,26 +308,17 @@ export default function MainLayout({ children }: Props) {
                   >
                     <FontAwesomeIcon icon={faUser} />
                     <span>Account</span>
-                    <FontAwesomeIcon
-                      icon={faChevronDown}
-                      className="text-xs opacity-70"
-                    />
+                    <FontAwesomeIcon icon={faChevronDown} className="text-xs opacity-70" />
                   </button>
 
                   <div className={dropdownClass}>
                     <Link href="/account" className={itemClass("/account")}>
                       Account Dashboard
                     </Link>
-                    <Link
-                      href="/account/details"
-                      className={itemClass("/account/details")}
-                    >
+                    <Link href="/account/details" className={itemClass("/account/details")}>
                       Account Details
                     </Link>
-                    <Link
-                      href="/account/addresses"
-                      className={itemClass("/account/addresses")}
-                    >
+                    <Link href="/account/addresses" className={itemClass("/account/addresses")}>
                       Addresses
                     </Link>
 
@@ -364,131 +361,134 @@ export default function MainLayout({ children }: Props) {
               <div className="mt-3 rounded-2xl border border-white/40 bg-white shadow-lg overflow-hidden">
                 {/* ✅ scroll container */}
                 <div className="relative max-h-[calc(100vh-96px)] overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-zinc-300 scrollbar-track-transparent">
-                  <div className="grid gap-3 text-base">
-                    {/* المحتوى زي ما هو */}
-                  {nav.map((i) => (
-                    <div key={i.href} onClick={() => setMenuOpen(false)}>
-                      <NavLink
-                        href={i.href}
-                        label={i.label}
-                        className="w-full block text-left"
+                  {/* ✅ Mobile Search */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      submitNavbarSearch(navQuery);
+                    }}
+                    className="mb-3"
+                  >
+                    <div className="rounded-2xl bg-white/70 px-4 py-3 ring-1 ring-white/30 transition-all duration-300 focus-within:shadow-xl">
+                      <input
+                        value={navQuery}
+                        onChange={(e) => setNavQuery(e.target.value)}
+                        placeholder="Search products..."
+                        className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
                       />
                     </div>
-                  ))}
+                  </form>
 
-                  <div className="my-2 h-px bg-zinc-200" />
-
-                  <div onClick={() => setMenuOpen(false)}>
-                    <NavLink
-                      href="/wishlist"
-                      label="Wishlist"
-                      className="w-full block text-left"
-                    />
-                  </div>
-
-                  <div onClick={() => setMenuOpen(false)}>
-                    <NavLink
-                      href="/cart"
-                      label="Cart"
-                      className="w-full block text-left"
-                    >
-                      <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--brand-600)] px-1 text-xs font-bold text-white">
-                        0
-                      </span>
-                    </NavLink>
-                  </div>
-
-                  <div className="my-2 h-px bg-zinc-200" />
-
-                  {/* ✅ Mobile Auth switch (hydration-safe) */}
-                  {!mounted ? (
-                    <div className="h-10 w-full rounded-full bg-white/65 border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)]" />
-                  ) : !token ? (
-                    <>
-                      <Link
-                        href="/login"
-                        onClick={() => setMenuOpen(false)}
-                        className="mt-1 inline-flex items-center justify-center rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] active:scale-95"
-                      >
-                        Login
-                      </Link>
-                      <Link
-                        href="/signup"
-                        onClick={() => setMenuOpen(false)}
-                        className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[var(--brand-700)] border border-zinc-200 transition-all duration-300 hover:bg-[var(--brand-50)] active:scale-95"
-                      >
-                        Create account
-                      </Link>
-                    </>
-                  ) : (
-                    <div className="grid gap-2">
-                      <Link
-                        href="/account"
-                        onClick={() => setMenuOpen(false)}
-                        className={mobileItemClass("/account")}
-                      >
-                        Account Dashboard
-                      </Link>
-                      <Link
-                        href="/account/details"
-                        onClick={() => setMenuOpen(false)}
-                        className={mobileItemClass("/account/details")}
-                      >
-                        Account Details
-                      </Link>
-                      <Link
-                        href="/account/addresses"
-                        onClick={() => setMenuOpen(false)}
-                        className={mobileItemClass("/account/addresses")}
-                      >
-                        Addresses
-                      </Link>
-                      <Link
-                        href="/orders"
-                        onClick={() => setMenuOpen(false)}
-                        className={mobileItemClass("/orders")}
-                      >
-                        Orders
-                      </Link>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          handleLogout();
-                        }}
-                        className="mt-1 inline-flex items-center justify-center rounded-full bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition-all duration-300 hover:bg-red-100 active:scale-95"
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  )}
-                        </div>
+                  <div className="grid gap-3 text-base">
+                    {nav.map((i) => (
+                      <div key={i.href} onClick={() => setMenuOpen(false)}>
+                        <NavLink href={i.href} label={i.label} className="w-full block text-left" />
                       </div>
+                    ))}
+
+                    <div className="my-2 h-px bg-zinc-200" />
+
+                    <div onClick={() => setMenuOpen(false)}>
+                      <NavLink href="/wishlist" label="Wishlist" className="w-full block text-left" />
                     </div>
+
+                    <div onClick={() => setMenuOpen(false)}>
+                      <NavLink href="/cart" label="Cart" className="w-full block text-left">
+                        <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--brand-600)] px-1 text-xs font-bold text-white">
+                          0
+                        </span>
+                      </NavLink>
+                    </div>
+
+                    <div className="my-2 h-px bg-zinc-200" />
+
+                    {/* ✅ Mobile Auth switch (hydration-safe) */}
+                    {!mounted ? (
+                      <div className="h-10 w-full rounded-full bg-white/65 border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)]" />
+                    ) : !token ? (
+                      <>
+                        <Link
+                          href="/login"
+                          onClick={() => setMenuOpen(false)}
+                          className="mt-1 inline-flex items-center justify-center rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] active:scale-95"
+                        >
+                          Login
+                        </Link>
+                        <Link
+                          href="/signup"
+                          onClick={() => setMenuOpen(false)}
+                          className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[var(--brand-700)] border border-zinc-200 transition-all duration-300 hover:bg-[var(--brand-50)] active:scale-95"
+                        >
+                          Create account
+                        </Link>
+                      </>
+                    ) : (
+                      <div className="grid gap-2">
+                        <Link
+                          href="/account"
+                          onClick={() => setMenuOpen(false)}
+                          className={mobileItemClass("/account")}
+                        >
+                          Account Dashboard
+                        </Link>
+                        <Link
+                          href="/account/details"
+                          onClick={() => setMenuOpen(false)}
+                          className={mobileItemClass("/account/details")}
+                        >
+                          Account Details
+                        </Link>
+                        <Link
+                          href="/account/addresses"
+                          onClick={() => setMenuOpen(false)}
+                          className={mobileItemClass("/account/addresses")}
+                        >
+                          Addresses
+                        </Link>
+                        <Link
+                          href="/orders"
+                          onClick={() => setMenuOpen(false)}
+                          className={mobileItemClass("/orders")}
+                        >
+                          Orders
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            handleLogout();
+                          }}
+                          className="mt-1 inline-flex items-center justify-center rounded-full bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition-all duration-300 hover:bg-red-100 active:scale-95"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
         </header>
 
         {/* Content */}
         {isAuthPage ? (
-  <main className="py-0">{children}</main>
-) : (
-  <main className="mx-auto w-[80%] py-8">
-    {shouldBlockPrivate ? (
-      <div className="py-10">
-        <div className="mx-auto w-full max-w-md rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-6 text-center">
-          <p className="text-sm font-semibold text-zinc-900">Checking session…</p>
-          <p className="mt-2 text-sm text-zinc-600">
-            You’ll be redirected to login.
-          </p>
-        </div>
-      </div>
-    ) : (
-      children
-    )}
-  </main>
-)}
+          <main className="py-0">{children}</main>
+        ) : (
+          <main className="mx-auto w-[80%] py-8">
+            {shouldBlockPrivate ? (
+              <div className="py-10">
+                <div className="mx-auto w-full max-w-md rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-6 text-center">
+                  <p className="text-sm font-semibold text-zinc-900">Checking session…</p>
+                  <p className="mt-2 text-sm text-zinc-600">You’ll be redirected to login.</p>
+                </div>
+              </div>
+            ) : (
+              children
+            )}
+          </main>
+        )}
 
         {/* Footer */}
         <footer
@@ -502,13 +502,10 @@ export default function MainLayout({ children }: Props) {
           <div className="relative mx-auto max-w-[85%] px-4 py-10">
             <div className="grid gap-6 md:grid-cols-4">
               <div>
-                <h3 className="text-lg font-extrabold text-[var(--brand-700)]">
-                  MyStore
-                </h3>
+                <h3 className="text-lg font-extrabold text-[var(--brand-700)]">MyStore</h3>
 
                 <p className="mt-3 text-[13px] leading-relaxed text-zinc-600">
-                  Discover premium quality products with fast delivery and secure
-                  checkout.
+                  Discover premium quality products with fast delivery and secure checkout.
                 </p>
 
                 <div className="mt-5 flex gap-3">
@@ -527,9 +524,7 @@ export default function MainLayout({ children }: Props) {
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-zinc-800">
-                  Quick Links
-                </h4>
+                <h4 className="text-sm font-semibold text-zinc-800">Quick Links</h4>
 
                 <ul className="mt-3 space-y-2 text-[13px] text-zinc-600">
                   <li className="hover:text-[var(--brand-600)] transition">
@@ -551,18 +546,10 @@ export default function MainLayout({ children }: Props) {
                 <h4 className="text-sm font-semibold text-zinc-800">Categories</h4>
 
                 <ul className="mt-3 space-y-2 text-[13px] text-zinc-600">
-                  <li className="hover:text-[var(--brand-600)] transition">
-                    Fruits
-                  </li>
-                  <li className="hover:text-[var(--brand-600)] transition">
-                    Dairy
-                  </li>
-                  <li className="hover:text-[var(--brand-600)] transition">
-                    Bakery
-                  </li>
-                  <li className="hover:text-[var(--brand-600)] transition">
-                    Beverages
-                  </li>
+                  <li className="hover:text-[var(--brand-600)] transition">Fruits</li>
+                  <li className="hover:text-[var(--brand-600)] transition">Dairy</li>
+                  <li className="hover:text-[var(--brand-600)] transition">Bakery</li>
+                  <li className="hover:text-[var(--brand-600)] transition">Beverages</li>
                 </ul>
               </div>
 

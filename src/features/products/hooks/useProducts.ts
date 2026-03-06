@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { getProducts, ProductsQuery } from "../api/productsApi";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { getProducts, type ProductsQuery } from "../api/productsApi";
 
 type UseProductsOptions = {
   staleTimeMs?: number;
@@ -13,11 +13,11 @@ export const useProducts = (params?: ProductsQuery, options?: UseProductsOptions
     queryFn: () => getProducts(params ?? {}),
     enabled: options?.enabled ?? true,
 
-    // ✅ caching behavior (override per page/component)
+    placeholderData: keepPreviousData,
+
     staleTime: options?.staleTimeMs,
     gcTime: options?.gcTimeMs,
 
-    // ✅ stop annoying refetches
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,

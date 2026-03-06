@@ -1,15 +1,13 @@
 import { api } from "@/lib/axios";
-import type {
-  ProductsResponse,
-  ProductDetailsResponse,
-} from "../types/product.types";
+import type { ProductsResponse, ProductDetailsResponse } from "../types/product.types";
 
 export type ProductsQuery = {
   page?: number;
   limit?: number;
   keyword?: string;
-  sort?: string; // example: "-price"
+  sort?: string;
   brand?: string;
+  category?: string;
   "price[gte]"?: number;
   "price[lte]"?: number;
 };
