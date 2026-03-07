@@ -15,8 +15,8 @@ export const useProducts = (params?: ProductsQuery, options?: UseProductsOptions
 
     placeholderData: keepPreviousData,
 
-    staleTime: options?.staleTimeMs,
-    gcTime: options?.gcTimeMs,
+    staleTime: options?.staleTimeMs ?? 1000 * 60 * 10, // 10 min fresh
+    gcTime: options?.gcTimeMs ?? 1000 * 60 * 30, // keep 30 min in cache
 
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

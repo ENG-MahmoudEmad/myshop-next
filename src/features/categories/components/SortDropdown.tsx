@@ -7,37 +7,54 @@ type Option = { label: string; value: string };
 type Props = {
   label?: string;
   options: Option[];
+  value?: string;
   defaultValue?: string;
+  onChange?: (value: string) => void;
 };
 
 export default function SortDropdown({
   label = "Sort by:",
   options,
+  value,
   defaultValue,
+  onChange,
 }: Props) {
   const initial = useMemo(() => {
+    const v = value ?? defaultValue;
+
     return (
-      options.find((o) => o.value === defaultValue) ??
-      options[0] ??
-      { label: "Featured", value: "Featured" }
+      options.find((o) => o.value === v) ??
+      options[0] ?? {
+        label: "Featured",
+        value: "featured",
+      }
     );
-  }, [options, defaultValue]);
+  }, [options, value, defaultValue]);
 
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<Option>(initial);
+  const [selected, setSelected] = useState(initial);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (value == null) return;
+    const next = options.find((o) => o.value === value);
+    if (next) setSelected(next);
+  }, [value, options]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!wrapRef.current) return;
       if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
     }
+
     function onEsc(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onEsc);
+
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onEsc);
@@ -81,6 +98,7 @@ export default function SortDropdown({
             <div className="p-3 space-y-1.5">
               {options.map((opt) => {
                 const active = opt.value === selected.value;
+
                 return (
                   <button
                     key={opt.value}
@@ -88,6 +106,7 @@ export default function SortDropdown({
                     onClick={() => {
                       setSelected(opt);
                       setOpen(false);
+                      onChange?.(opt.value);
                     }}
                     className={[
                       "w-full rounded-xl px-3 py-2 text-sm text-left transition-all duration-200",

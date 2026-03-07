@@ -1,50 +1,71 @@
 import Link from "next/link";
 import {
-  Apple,
-  Milk,
-  Croissant,
-  Fish,
-  Coffee,
-  SprayCan,
+  Smartphone,
+  Laptop,
+  Headphones,
+  Watch,
+  Shirt,
+  Backpack,
 } from "lucide-react";
 
 const subcategories = [
-  { name: "Fresh Fruits", itemsCount: 42, icon: Apple, href: "/products?subcategory=fresh-fruits" },
-  { name: "Fresh Vegetables", itemsCount: 38, icon: Apple, href: "/products?subcategory=fresh-vegetables" },
-  { name: "Cheese", itemsCount: 24, icon: Milk, href: "/products?subcategory=cheese" },
-  { name: "Bread", itemsCount: 28, icon: Croissant, href: "/products?subcategory=bread" },
-  { name: "Seafood", itemsCount: 19, icon: Fish, href: "/products?subcategory=seafood" },
-  { name: "Juices", itemsCount: 22, icon: Coffee, href: "/products?subcategory=juices" },
+  {
+    name: "Smartphones",
+    itemsCount: 42,
+    icon: Smartphone,
+    href: "/search?subcategory=smartphones",
+  },
+  {
+    name: "Laptops",
+    itemsCount: 28,
+    icon: Laptop,
+    href: "/search?subcategory=laptops",
+  },
+  {
+    name: "Headphones",
+    itemsCount: 24,
+    icon: Headphones,
+    href: "/search?subcategory=headphones",
+  },
+  {
+    name: "Smart Watches",
+    itemsCount: 18,
+    icon: Watch,
+    href: "/search?subcategory=smart-watches",
+  },
+  {
+    name: "T-Shirts",
+    itemsCount: 36,
+    icon: Shirt,
+    href: "/search?subcategory=t-shirts",
+  },
+  {
+    name: "Bags & Backpacks",
+    itemsCount: 20,
+    icon: Backpack,
+    href: "/search?subcategory=bags-backpacks",
+  },
 ];
 
 export default function PopularSubcategoriesSection() {
   return (
     <section className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-zinc-900">
           Popular Subcategories
         </h2>
-
       </div>
 
-      {/* Grid */}
       <div className="grid gap-6 sm:grid-cols-3 lg:grid-cols-6">
         {subcategories.map((sub, i) => {
           const Icon = sub.icon;
 
           return (
-            <Link
-              key={i}
-              href={sub.href}
-              className="group block"
-            >
+            <Link key={i} href={sub.href} className="group block">
               <div
                 className={[
                   "flex flex-col items-center gap-2 rounded-2xl p-6 text-center",
-                  // ✅ MyShop Glass System
                   "bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)]",
-                  // ✅ Hover lift (cheatsheet)
                   "transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl",
                 ].join(" ")}
               >

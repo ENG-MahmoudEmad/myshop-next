@@ -134,20 +134,20 @@ export default function BrandDetailsScreen({ id }: Props) {
           </section>
 
           {/* PRODUCTS */}
-          <section className="mt-16">
-            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-zinc-900">
-                  Products by {brand.name}
-                </h2>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Browse available products from this brand.
-                </p>
-              </div>
+          <section className="mt-20">
+  <div className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+  <h2 className="text-2xl font-bold text-zinc-900">
+    Products by {brand.name}
+  </h2>
+  <p className="text-sm text-zinc-600">
+    Browse available products from this brand.
+  </p>
+</div>
 
-              <div className="rounded-full border border-white/30 bg-white/70 px-4 py-2 text-sm text-zinc-700 shadow-sm backdrop-blur-md">
-                {results} item{results === 1 ? "" : "s"}
-              </div>
+<div className="self-start rounded-full border border-white/30 bg-white/70 px-4 py-2 text-sm text-zinc-700 shadow-sm backdrop-blur-md sm:self-auto">
+  {results} item{results === 1 ? "" : "s"}
+</div>
             </div>
 
             {productsQuery.isLoading ? (

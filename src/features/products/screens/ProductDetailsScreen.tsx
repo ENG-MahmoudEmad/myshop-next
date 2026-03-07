@@ -79,6 +79,7 @@ function isAlreadyReviewedError(e: any) {
 export default function ProductDetailsScreen({ id }: Props) {
   const router = useRouter();
 
+  const [localCartLoading, setLocalCartLoading] = useState(false);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState<"details" | "reviews" | "shipping">("details");
@@ -96,16 +97,94 @@ export default function ProductDetailsScreen({ id }: Props) {
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const updateReviewM = useMutation({
-    mutationFn: (args: { reviewId: string; review: string; rating: number }) =>
-      updateReviewApi(args.reviewId, { review: args.review, rating: args.rating }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-reviews", id] }),
-  });
+const updateReviewM = useMutation({
+  mutationFn: (args: { reviewId: string; review: string; rating: number }) =>
+    updateReviewApi(args.reviewId, { review: args.review, rating: args.rating }),
 
-  const deleteReviewM = useMutation({
-    mutationFn: (reviewId: string) => deleteReviewApi(reviewId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-reviews", id] }),
-  });
+  onMutate: async ({ reviewId, review, rating }) => {
+    await qc.cancelQueries({ queryKey: ["product-reviews", id] });
+
+    const previousReviews = qc.getQueryData(["product-reviews", id]);
+
+    qc.setQueryData(["product-reviews", id], (old: any) => {
+      if (!old) return old;
+
+      const current = Array.isArray(old?.data)
+        ? old.data
+        : Array.isArray(old)
+          ? old
+          : [];
+
+      const updated = current.map((item: any) =>
+        String(item?._id) === String(reviewId)
+          ? { ...item, review, rating }
+          : item
+      );
+
+      if (Array.isArray(old)) return updated;
+
+      return {
+        ...old,
+        data: updated,
+      };
+    });
+
+    return { previousReviews };
+  },
+
+  onError: (_err, _vars, context) => {
+    if (context?.previousReviews) {
+      qc.setQueryData(["product-reviews", id], context.previousReviews);
+    }
+  },
+
+  onSuccess: () => {
+    qc.invalidateQueries({ queryKey: ["product-reviews", id] });
+  },
+});
+
+const deleteReviewM = useMutation({
+  mutationFn: (reviewId: string) => deleteReviewApi(reviewId),
+
+  onMutate: async (reviewId: string) => {
+    await qc.cancelQueries({ queryKey: ["product-reviews", id] });
+
+    const previousReviews = qc.getQueryData(["product-reviews", id]);
+
+    qc.setQueryData(["product-reviews", id], (old: any) => {
+      if (!old) return old;
+
+      const current = Array.isArray(old?.data)
+        ? old.data
+        : Array.isArray(old)
+          ? old
+          : [];
+
+      const updated = current.filter(
+        (item: any) => String(item?._id) !== String(reviewId)
+      );
+
+      if (Array.isArray(old)) return updated;
+
+      return {
+        ...old,
+        data: updated,
+      };
+    });
+
+    return { previousReviews };
+  },
+
+  onError: (_err, _reviewId, context) => {
+    if (context?.previousReviews) {
+      qc.setQueryData(["product-reviews", id], context.previousReviews);
+    }
+  },
+
+  onSuccess: () => {
+    qc.invalidateQueries({ queryKey: ["product-reviews", id] });
+  },
+});
 
   const reviewsList: any[] = useMemo(() => {
     const d: any = reviewsQ.data as any;
@@ -132,59 +211,56 @@ export default function ProductDetailsScreen({ id }: Props) {
   const canReview = !!getToken();
 
   const onSubmitReview = async () => {
-    if (!getToken()) {
-      toastError("Please login to write a review.", { autoClose: 2500 });
+  if (!getToken()) {
+    toastError("Please login to write a review.", { autoClose: 2500 });
+    return;
+  }
+
+  const text = reviewText.trim();
+  const rating = Math.min(5, Math.max(1, Number(reviewRating || 0)));
+
+  if (!text) {
+    toastError("Please write your review.", { autoClose: 2500 });
+    return;
+  }
+
+  try {
+    if (!editingId && myReview?._id) {
+      setEditingId(String(myReview._id));
+      setReviewText(
+        String(myReview?.review ?? myReview?.comment ?? myReview?.message ?? "")
+      );
+      setReviewRating(Number(myReview?.rating ?? 5));
       return;
     }
 
-    const text = reviewText.trim();
-    const rating = Math.min(5, Math.max(1, Number(reviewRating || 0)));
+    if (editingId) {
+      await updateReviewM.mutateAsync({
+        reviewId: editingId,
+        review: text,
+        rating,
+      });
+      setEditingId(null);
+    } else {
+      await addReviewM.mutateAsync({ review: text, rating });
+      await qc.invalidateQueries({ queryKey: ["product-reviews", id] });
+    }
 
-    if (!text) {
-      toastError("Please write your review.", { autoClose: 2500 });
+    setReviewText("");
+    setReviewRating(5);
+  } catch (e: any) {
+    if (isAlreadyReviewedError(e) && myReview?._id) {
+      setEditingId(String(myReview._id));
+      setReviewText(
+        String(myReview?.review ?? myReview?.comment ?? myReview?.message ?? "")
+      );
+      setReviewRating(Number(myReview?.rating ?? 5));
       return;
     }
 
-    try {
-      if (!editingId && myReview?._id) {
-        setEditingId(String(myReview._id));
-        setReviewText(
-          String(myReview?.review ?? myReview?.comment ?? myReview?.message ?? "")
-        );
-        setReviewRating(Number(myReview?.rating ?? 5));
-        toastError("You already reviewed this product. Edit your review instead.", {
-          autoClose: 3000,
-        });
-        return;
-      }
-
-      if (editingId) {
-        await updateReviewM.mutateAsync({ reviewId: editingId, review: text, rating });
-        toastSuccess("Review updated", { autoClose: 2000 });
-        setEditingId(null);
-      } else {
-        await addReviewM.mutateAsync({ review: text, rating });
-        toastSuccess("Review posted", { autoClose: 2000 });
-      }
-
-      setReviewText("");
-      setReviewRating(5);
-    } catch (e: any) {
-      if (isAlreadyReviewedError(e) && myReview?._id) {
-        setEditingId(String(myReview._id));
-        setReviewText(
-          String(myReview?.review ?? myReview?.comment ?? myReview?.message ?? "")
-        );
-        setReviewRating(Number(myReview?.rating ?? 5));
-        toastError("You already reviewed this product. Edit your review instead.", {
-          autoClose: 3000,
-        });
-        return;
-      }
-
-      toastError(getApiErrorMessage(e), { autoClose: 3500 });
-    }
-  };
+    toastError(getApiErrorMessage(e), { autoClose: 3500 });
+  }
+};
 
   const relatedQ = useProducts(
     { limit: 20, sort: "-createdAt" },
@@ -216,26 +292,45 @@ export default function ProductDetailsScreen({ id }: Props) {
 
   const isInWishlist = !!product?._id && wishlistIds.has(product._id);
 
-  const onWishlistToggle = async () => {
-    if (!product?._id) return;
+  const [localWishlist, setLocalWishlist] = useState<boolean | null>(null);
 
-    try {
-      if (isInWishlist) {
-        await removeWishM.mutateAsync(product._id);
-        toastSuccess("Removed from wishlist", { autoClose: 2000 });
-      } else {
-        await addWishM.mutateAsync(product._id);
-        toastSuccess("Added to wishlist", { autoClose: 2000 });
-      }
-    } catch (e: any) {
-      const kind = getWishlistErrorKind(e);
-      if (kind === "already") {
-        toastError("Already in your wishlist", { autoClose: 2500 });
-        return;
-      }
-      toastError(getApiErrorMessage(e), { autoClose: 3500 });
+useEffect(() => {
+  if (!product?._id) return;
+  setLocalWishlist(isInWishlist);
+}, [isInWishlist, product?._id]);
+
+const finalIsInWishlist = localWishlist ?? isInWishlist;
+
+const onWishlistToggle = async () => {
+  if (!product?._id) return;
+
+  const prev = finalIsInWishlist;
+
+  // ✅ UI first
+  setLocalWishlist(!prev);
+
+  try {
+    if (prev) {
+      await removeWishM.mutateAsync(product._id);
+      toastSuccess("Removed from wishlist", { autoClose: 2000 });
+    } else {
+      await addWishM.mutateAsync(product._id);
+      toastSuccess("Added to wishlist", { autoClose: 2000 });
     }
-  };
+  } catch (e: any) {
+    // ✅ rollback
+    setLocalWishlist(prev);
+
+    const kind = getWishlistErrorKind(e);
+    if (kind === "already") {
+      setLocalWishlist(true);
+      toastError("Already in your wishlist", { autoClose: 2500 });
+      return;
+    }
+
+    toastError(getApiErrorMessage(e), { autoClose: 3500 });
+  }
+};
 
   const unitPrice = useMemo(() => {
     const pad = product?.priceAfterDiscount;
@@ -325,15 +420,20 @@ export default function ProductDetailsScreen({ id }: Props) {
   const addCartM = useAddToCart();
   const inStock = (product?.quantity ?? 1) > 0;
 
-  const onAddToCart = async () => {
-    if (!product?._id) return;
-    try {
-      await addCartM.mutateAsync({ productId: product._id, count: qty });
-      toastSuccess(`Added to cart (x${qty})`, { autoClose: 2000 });
-    } catch (e: any) {
-      toastError(getApiErrorMessage(e), { autoClose: 3500 });
-    }
-  };
+const onAddToCart = async () => {
+  if (!product?._id) return;
+
+  setLocalCartLoading(true);
+
+  try {
+    await addCartM.mutateAsync({ productId: product._id, count: qty });
+    toastSuccess(`Added to cart (x${qty})`, { autoClose: 2000 });
+  } catch (e: any) {
+    toastError(getApiErrorMessage(e), { autoClose: 3500 });
+  } finally {
+    setLocalCartLoading(false);
+  }
+};
 
   const onBuyNow = () => router.push("/cart");
 
@@ -455,7 +555,7 @@ export default function ProductDetailsScreen({ id }: Props) {
                 onClick={onWishlistToggle}
                 className={[
                   "flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition active:scale-95",
-                  isInWishlist
+                  finalIsInWishlist
                     ? "bg-[var(--brand-600)] text-white hover:bg-[var(--brand-700)]"
                     : "bg-white/70 text-zinc-800 hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)]",
                 ].join(" ")}
@@ -531,14 +631,14 @@ export default function ProductDetailsScreen({ id }: Props) {
             <button
               type="button"
               onClick={onAddToCart}
-              disabled={addCartM.isPending || !inStock}
+              disabled={localCartLoading || !inStock}
               className={[
                 "rounded-full px-6 py-3 text-sm font-semibold text-white transition-all duration-300",
                 "bg-[var(--brand-600)] hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]",
-                (!inStock || addCartM.isPending) ? "opacity-60 cursor-not-allowed" : "",
+                (!inStock || localCartLoading) ? "opacity-60 cursor-not-allowed" : "",
               ].join(" ")}
             >
-              {addCartM.isPending ? "Adding…" : "Add to cart"}
+              {localCartLoading ? "Adding…" : "Add to cart"}
             </button>
 
             <button
@@ -706,19 +806,18 @@ export default function ProductDetailsScreen({ id }: Props) {
                             <button
                               type="button"
                               onClick={async () => {
-                                try {
-                                  await deleteReviewM.mutateAsync(String(r._id));
-                                  toastSuccess("Review deleted", { autoClose: 2000 });
+  try {
+    await deleteReviewM.mutateAsync(String(r._id));
 
-                                  if (editingId === String(r._id)) {
-                                    setEditingId(null);
-                                    setReviewText("");
-                                    setReviewRating(5);
-                                  }
-                                } catch (e: any) {
-                                  toastError(getApiErrorMessage(e), { autoClose: 3500 });
-                                }
-                              }}
+    if (editingId === String(r._id)) {
+      setEditingId(null);
+      setReviewText("");
+      setReviewRating(5);
+    }
+  } catch (e: any) {
+    toastError(getApiErrorMessage(e), { autoClose: 3500 });
+  }
+}}
                               className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-red-700 hover:shadow-sm"
                             >
                               Delete

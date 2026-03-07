@@ -8,7 +8,11 @@ export function useBrandDetails(id: string) {
     queryKey: ["brand-details", id],
     queryFn: () => getBrandByIdApi(id),
     enabled: !!id,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: 1,
   });
 }

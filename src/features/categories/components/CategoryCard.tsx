@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 
 type Props = {
@@ -27,26 +28,25 @@ export default function CategoryCard({
         "hover:-translate-y-1 hover:shadow-xl",
       ].join(" ")}
     >
-      {/* Media (image + overlay scale together) */}
       <div className="relative h-40 w-full overflow-hidden">
         <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-105">
-          <img
+          <Image
             src={imageUrl}
             alt={title}
-            className="h-full w-full object-cover"
+            fill
+            className="object-cover"
+            sizes="(min-width: 1024px) 33vw, 100vw"
           />
 
-          {/* Softer Brand Overlay */}
           <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(to top, rgba(191,54,12,0.45), rgba(216,67,21,0.12), rgba(255,171,145,0.05))",
-              }}
-            />
-          </div>
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to top, rgba(191,54,12,0.45), rgba(216,67,21,0.12), rgba(255,171,145,0.05))",
+            }}
+          />
+        </div>
 
-        {/* Title */}
         <div className="absolute bottom-4 left-4 right-4">
           <h3 className="text-lg font-extrabold text-white drop-shadow">
             {title}
@@ -57,7 +57,6 @@ export default function CategoryCard({
         </div>
       </div>
 
-      {/* Bottom */}
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex flex-wrap gap-2">
           {tags.slice(0, 3).map((t) => (
@@ -74,7 +73,6 @@ export default function CategoryCard({
           ))}
         </div>
 
-        {/* Arrow (brand) */}
         <div
           className={[
             "grid h-9 w-9 place-items-center rounded-full",
@@ -90,7 +88,6 @@ export default function CategoryCard({
         </div>
       </div>
 
-      {/* Brand glow hover */}
       <div className="pointer-events-none absolute -bottom-20 -right-16 h-40 w-40 rounded-full bg-[var(--brand-100)]/0 blur-3xl transition-all duration-500 group-hover:bg-[var(--brand-100)]/35" />
     </Link>
   );

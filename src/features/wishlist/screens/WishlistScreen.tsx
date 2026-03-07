@@ -10,49 +10,20 @@ import {
   faShareNodes,
   faCopy,
   faPlus,
-  faHeart,
 } from "@fortawesome/free-solid-svg-icons";
 
-import { useWishlist } from "@/features/wishlist/hooks/useWishlist";
-import { useRemoveFromWishlist } from "@/features/wishlist/hooks/useRemoveFromWishlist";
+import { useWishlist, useRemoveFromWishlist } from "@/features/wishlist/hooks/useWishlist";
+import RecentlyViewed from "@/features/products/components/RecentlyViewed";
 
-const recentlyViewed = [
-  {
-    id: "710",
-    name: "Fresh Broccoli (1pc)",
-    rating: 4.1,
-    price: 1.79,
-    image: "/products/p7.png",
-  },
-  {
-    id: "711",
-    name: "Greek Yogurt (32oz)",
-    rating: 5,
-    price: 4.49,
-    image: "/products/p8.png",
-  },
-  {
-    id: "712",
-    name: "Organic Brown Eggs (12pcs)",
-    rating: 4.2,
-    price: 3.99,
-    image: "/products/p9.png",
-  },
-  {
-    id: "202",
-    name: "Organic Fresh Apples (1kg)",
-    rating: 4.3,
-    price: 3.99,
-    image: "/products/p3.png",
-  },
-  {
-    id: "302",
-    name: "Artisan Sourdough Bread",
-    rating: 5,
-    price: 3.99,
-    image: "/products/p2.png",
-  },
-];
+function shortTitle(title: string) {
+  const short = String(title ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+
+  return short.length < String(title ?? "").length ? `${short}…` : short;
+}
 
 function Stars({ rating }: { rating: number }) {
   const full = Math.floor(rating);
@@ -91,22 +62,18 @@ const WISHLIST_NAME_KEY = "myshop:wishlistName";
 
 export default function WishlistScreen() {
   const { data, isLoading, isError } = useWishlist();
-  const { mutate: removeItem, isPending: isRemoving } =
-    useRemoveFromWishlist();
+  const removeWishlistItem = useRemoveFromWishlist();
 
   const products = data?.data ?? [];
   const count = products.length;
 
-  // ✅ Pagination (Client-side)
   const pageSize = 6;
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
   const [page, setPage] = useState(1);
 
-  // لو عدد المنتجات قل بعد حذف، رجّع الصفحة لو خرجت عن المدى
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalPages]);
+  }, [page, totalPages]);
 
   const pagedProducts = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -115,10 +82,9 @@ export default function WishlistScreen() {
 
   const subtotal = useMemo(
     () => products.reduce((s, p) => s + Number(p.price ?? 0), 0),
-    [products],
+    [products]
   );
 
-  // ✅ Wishlist name (local only – API ما فيها multiple wishlists)
   const [wishlistName, setWishlistName] = useState("My Wishlist");
   const [nameInput, setNameInput] = useState("");
 
@@ -127,7 +93,7 @@ export default function WishlistScreen() {
       const saved = localStorage.getItem(WISHLIST_NAME_KEY);
       if (saved) setWishlistName(saved);
     } catch {
-      // ignore
+      //
     }
   }, []);
 
@@ -136,16 +102,16 @@ export default function WishlistScreen() {
     if (!v) return;
     setWishlistName(v);
     setNameInput("");
+
     try {
       localStorage.setItem(WISHLIST_NAME_KEY, v);
     } catch {
-      // ignore
+      //
     }
   };
 
   const pageNumbers = useMemo(() => {
     if (totalPages <= 1) return [];
-    // أرقام بسيطة: 1..totalPages (لو بتحب نعملها ellipsis بعدين)
     return Array.from({ length: totalPages }, (_, i) => i + 1);
   }, [totalPages]);
 
@@ -168,19 +134,17 @@ export default function WishlistScreen() {
 
           <p className="mt-2 text-sm text-zinc-600">
             {isLoading ? "Loading..." : `${count} items in your wishlist`} •
-            Subtotal{" "}
+            {" "}Subtotal{" "}
             <span className="font-semibold text-[var(--brand-700)]">
-              ${subtotal.toFixed(2)}
+              EGP {subtotal.toFixed(2)}
             </span>
           </p>
         </div>
 
-        {/* Actions */}
         <div className="flex flex-wrap gap-3">
           <button
             className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-sm font-semibold text-zinc-900 backdrop-blur transition hover:shadow-md active:scale-[0.98] disabled:opacity-60"
             disabled={isLoading || count === 0}
-            // لسه UI: لما نعمل "clear all" هنعمل loop delete لكل منتج
             onClick={() => {}}
           >
             <FontAwesomeIcon icon={faTrash} className="text-zinc-600" />
@@ -190,7 +154,6 @@ export default function WishlistScreen() {
           <button
             className="inline-flex items-center gap-2 rounded-full bg-[var(--brand-600)] px-4 py-2 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98] disabled:opacity-60"
             disabled={isLoading || count === 0}
-            // UI: بعدين بنربطها مع cart
             onClick={() => {}}
           >
             <FontAwesomeIcon icon={faCartShopping} />
@@ -199,7 +162,6 @@ export default function WishlistScreen() {
         </div>
       </div>
 
-      {/* Loading / Error */}
       {isLoading && (
         <div className="rounded-3xl border border-white/40 bg-white/70 p-6 backdrop-blur-md">
           Loading wishlist...
@@ -212,10 +174,9 @@ export default function WishlistScreen() {
         </div>
       )}
 
-      {/* Main grid */}
       <section className="grid gap-8 lg:grid-cols-3">
         {/* List */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4 lg:col-span-2">
           <GlassCard className="overflow-hidden">
             <div className="border-b border-white/40 px-6 py-5">
               <h2 className="text-sm font-extrabold text-zinc-900">
@@ -272,7 +233,7 @@ export default function WishlistScreen() {
                         </div>
 
                         <div className="mt-1 line-clamp-1 text-sm font-semibold text-zinc-900 group-hover:text-[var(--brand-700)]">
-                          {item.title}
+                          {shortTitle(item.title)}
                         </div>
 
                         <div className="mt-2 flex items-center gap-2">
@@ -284,16 +245,14 @@ export default function WishlistScreen() {
                         </div>
 
                         <div className="mt-2 text-lg font-extrabold text-[var(--brand-700)]">
-                          ${Number(item.price ?? 0).toFixed(2)}
+                          EGP {Number(item.price ?? 0).toFixed(2)}
                         </div>
                       </div>
                     </Link>
 
-                    {/* Right actions */}
-                    <div className="sm:ml-auto flex items-center gap-3">
+                    <div className="flex items-center gap-3 sm:ml-auto">
                       <button
                         className="inline-flex items-center justify-center rounded-full bg-[var(--brand-600)] px-5 py-2 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-md active:scale-[0.98]"
-                        // UI فقط حاليا
                         onClick={() => {}}
                       >
                         Add to Cart
@@ -303,8 +262,11 @@ export default function WishlistScreen() {
                         className="grid h-10 w-10 place-items-center rounded-full border border-zinc-200 bg-white/80 text-zinc-700 backdrop-blur transition hover:border-transparent hover:bg-red-50 hover:text-red-600 active:scale-[0.98] disabled:opacity-60"
                         aria-label="Remove"
                         title="Remove"
-                        disabled={isRemoving}
-                        onClick={() => removeItem(item._id)}
+                        disabled={
+                          removeWishlistItem.isPending &&
+                          removeWishlistItem.variables === item._id
+                        }
+                        onClick={() => removeWishlistItem.mutate(item._id)}
                       >
                         <FontAwesomeIcon icon={faTrash} />
                       </button>
@@ -314,7 +276,6 @@ export default function WishlistScreen() {
               ))}
             </div>
 
-            {/* ✅ Pagination (ظهر بس لما يكون في صفحات فعلية) */}
             {!isLoading && count > 0 && totalPages > 1 && (
               <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-5">
                 <button
@@ -360,7 +321,6 @@ export default function WishlistScreen() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* ✅ Rename wishlist (instead of create/public/private) */}
           <GlassCard className="p-6">
             <h3 className="text-sm font-extrabold text-zinc-900">
               Wishlist Name
@@ -390,7 +350,6 @@ export default function WishlistScreen() {
             </div>
           </GlassCard>
 
-          {/* My wishlist (single) */}
           <GlassCard className="p-6">
             <h3 className="text-sm font-extrabold text-zinc-900">
               My Wishlist
@@ -408,7 +367,6 @@ export default function WishlistScreen() {
                 <button
                   className="text-sm font-semibold text-[var(--brand-700)] hover:underline"
                   onClick={() => {
-                    // بس يرجع لأول الصفحة
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                 >
@@ -418,7 +376,6 @@ export default function WishlistScreen() {
             </div>
           </GlassCard>
 
-          {/* Share */}
           <GlassCard className="p-6">
             <div className="flex items-center gap-2 text-sm font-extrabold text-zinc-900">
               <FontAwesomeIcon
@@ -453,10 +410,10 @@ export default function WishlistScreen() {
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(
-                      "https://myshop-next-alpha.vercel.app/",
+                      "https://myshop-next-alpha.vercel.app/"
                     );
                   } catch {
-                    // ignore
+                    //
                   }
                 }}
               >
@@ -468,68 +425,8 @@ export default function WishlistScreen() {
         </div>
       </section>
 
-      {/* Recently Viewed (UI only) */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-extrabold text-zinc-900">
-            Recently Viewed
-          </h2>
-
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <FontAwesomeIcon
-              icon={faHeart}
-              className="text-[var(--brand-700)]"
-            />
-            Inspired picks for you
-          </div>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-          {recentlyViewed.map((p) => (
-            <Link
-              key={p.id}
-              href={`/product/${p.id}`}
-              className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="relative h-44 w-full bg-zinc-50">
-                <Image
-                  src={p.image}
-                  alt={p.name}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <button
-                  className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-white/70 text-zinc-700 backdrop-blur transition-all duration-300 hover:bg-[var(--brand-600)] hover:text-white hover:scale-110 active:scale-95"
-                  aria-label="Wishlist"
-                  title="Wishlist"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  ♥
-                </button>
-              </div>
-
-              <div className="p-4">
-                <div className="line-clamp-1 text-sm font-semibold text-zinc-900 group-hover:text-[var(--brand-700)]">
-                  {p.name}
-                </div>
-
-                <div className="mt-2 flex items-center justify-between">
-                  <div>
-                    <Stars rating={p.rating} />
-                    <div className="mt-2 text-lg font-extrabold text-zinc-900">
-                      ${p.price.toFixed(2)}
-                    </div>
-                  </div>
-
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-50)] text-[var(--brand-700)] transition-all duration-300 group-hover:bg-[var(--brand-600)] group-hover:text-white">
-                    <FontAwesomeIcon icon={faPlus} className="text-lg leading-none" />
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {/* Recently Viewed */}
+      <RecentlyViewed />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useCartCount } from "@/features/cart/hooks/useCartCount";
 import { faFacebookF, faInstagram, faTwitter } from "@fortawesome/free-brands-svg-icons";
 import {
   faBars,
@@ -62,6 +63,7 @@ function NavLink({
 export default function MainLayout({ children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const { count } = useCartCount();
 
   const { token, ready } = useAuthToken();
 
@@ -69,6 +71,7 @@ export default function MainLayout({ children }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
+  
 
   // ✅ Navbar search
   const [navQuery, setNavQuery] = useState("");
@@ -283,9 +286,13 @@ export default function MainLayout({ children }: Props) {
               <NavLink href="/wishlist" label="Wishlist" />
 
               <NavLink href="/cart" label="Cart">
-                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--brand-600)] px-1 text-xs font-bold text-white">
-                  0
-                </span>
+
+              
+                {count > 0 ? (
+  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--brand-600)] px-1 text-xs font-bold text-white">
+    {count}
+  </span>
+) : null}
               </NavLink>
 
               {/* ✅ Auth switch (hydration-safe) */}

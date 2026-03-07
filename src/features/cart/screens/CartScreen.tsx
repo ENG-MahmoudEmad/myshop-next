@@ -2,132 +2,118 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrash } from "@fortawesome/free-solid-svg-icons";
-import { faPlus } from "@fortawesome/free-solid-svg-icons";
+import { Loader2, ShoppingBag, Trash2 } from "lucide-react";
+import RecentlyViewedStrip from "@/features/search/components/RecentlyViewedStrip";
+import { useEffect, useMemo, useState } from "react";
 
-type Item = {
-  id: string;
-  name: string;
-  price: number;
-  oldPrice?: number;
-  image: string;
-  rating?: number;
-  category?: string;
-};
-
-const initialItems: Item[] = [
-  {
-    id: "202",
-    name: "Organic Fresh Apples (1kg)",
-    price: 7.98,
-    oldPrice: 10.98,
-    image: "/products/p3.png",
-    rating: 4,
-    category: "Fruits & Vegetables",
-  },
-  {
-    id: "301",
-    name: "Organic Whole Milk (1 gallon)",
-    price: 4.29,
-    oldPrice: 4.99,
-    image: "/products/p1.png",
-    rating: 5,
-    category: "Dairy & Eggs",
-  },
-  {
-    id: "302",
-    name: "Artisan Sourdough Bread",
-    price: 3.99,
-    oldPrice: 4.99,
-    image: "/products/p2.png",
-    rating: 5,
-    category: "Bakery & Snacks",
-  },
-];
-
-const youMayAlsoLike: Item[] = [
-  {
-    id: "401",
-    name: "Hass Avocados (2pcs)",
-    price: 2.99,
-    image: "/products/p4.png",
-    rating: 4,
-    category: "Fruits & Vegetables",
-  },
-  {
-    id: "402",
-    name: "Organic Bananas (1kg)",
-    price: 1.99,
-    oldPrice: 2.5,
-    image: "/products/p2.png",
-    rating: 4,
-    category: "Fruits & Vegetables",
-  },
-  {
-    id: "403",
-    name: "Greek Yogurt (32oz)",
-    price: 4.49,
-    image: "/products/p1.png",
-    rating: 4,
-    category: "Dairy & Eggs",
-  },
-  {
-    id: "404",
-    name: "Fresh Broccoli (1pc)",
-    price: 1.79,
-    image: "/products/p3.png",
-    rating: 4,
-    category: "Fruits & Vegetables",
-  },
-];
+import { useCart } from "../hooks/useCart";
+import { useUpdateCartItemCount } from "../hooks/useUpdateCartItemCount";
+import { useRemoveCartItem } from "../hooks/useRemoveCartItem";
+import { useClearCart } from "../hooks/useClearCart";
 
 function Stars({ rating = 4 }: { rating?: number }) {
   return (
     <div className="text-[var(--brand-600)] text-sm leading-none">
-      {"★".repeat(Math.max(0, Math.min(5, rating)))}
-      {"☆".repeat(Math.max(0, 5 - Math.min(5, Math.max(0, rating))))}
+      {"★".repeat(Math.max(0, Math.min(5, Math.round(rating))))}
+      {"☆".repeat(Math.max(0, 5 - Math.min(5, Math.max(0, Math.round(rating)))))}
     </div>
   );
 }
 
+function formatEGP(value: number) {
+  return `${value.toFixed(2)} EGP`;
+}
+
+function getFirstThreeWords(text?: string) {
+  if (!text) return "Product";
+  return text.split(/\s+/).slice(0, 3).join(" ");
+}
+
 export default function CartScreen() {
-  const [items, setItems] = useState<Item[]>(initialItems);
-  const [qty, setQty] = useState<Record<string, number>>({
-    "202": 2,
-    "301": 1,
-    "302": 1,
-  });
+  const ITEMS_PER_PAGE = 6;
 
-  // Coupon UI only
-  const couponCode = "FRESH20";
-  const discount = items.length ? 3.25 : 0;
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const subtotal = items.reduce((sum, it) => sum + it.price * (qty[it.id] ?? 1), 0);
-  const shipping = items.length ? (subtotal > 30 ? 0 : 3.99) : 0;
-  const tax = items.length ? 1.04 : 0;
+  const { data, isLoading, isError } = useCart();
+  const { mutate: updateCount, isPending: isUpdatingCount } = useUpdateCartItemCount();
+  const { mutate: removeItem, isPending: isRemoving } = useRemoveCartItem();
+  const { mutate: clearCart, isPending: isClearing } = useClearCart();
+
+  const cart = data?.data;
+  const cartItems = cart?.products ?? [];
+  const cartId = cart?._id ?? cart?.id ?? "";
+
+  const totalPages = Math.max(1, Math.ceil(cartItems.length / ITEMS_PER_PAGE));
+
+  const paginatedCartItems = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    return cartItems.slice(start, end);
+  }, [cartItems, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const subtotal = Number(cart?.totalCartPrice ?? 0);
+  const shipping = cartItems.length ? 0 : 0;
+  const tax = 0;
+  const discount = 0;
   const total = subtotal + shipping + tax - discount;
 
-  const changeQty = (id: string, delta: number) => {
-    setQty((prev) => {
-      const next = Math.max(1, (prev[id] ?? 1) + delta);
-      return { ...prev, [id]: next };
+  const handleDecrease = (productId: string, currentCount: number) => {
+    if (currentCount <= 1) return;
+
+    updateCount({
+      itemId: productId,
+      count: currentCount - 1,
     });
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((x) => x.id !== id));
-    setQty((prev) => {
-      const copy = { ...prev };
-      delete copy[id];
-      return copy;
+  const handleIncrease = (productId: string, currentCount: number) => {
+    updateCount({
+      itemId: productId,
+      count: currentCount + 1,
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl border border-white/40 bg-white/70 px-5 py-4 text-sm font-semibold text-zinc-700 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--brand-600)]" />
+          Loading your cart...
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-8">
+        <div className="text-sm text-zinc-500">
+          <Link className="hover:text-[var(--brand-700)]" href="/">
+            Home
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-zinc-700">Shopping Cart</span>
+        </div>
+
+        <div className="rounded-3xl border border-red-100 bg-red-50/70 p-8 text-center">
+          <p className="text-sm font-medium text-red-700">
+            Failed to load your cart. Please try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10">
-      {/* Breadcrumb */}
       <div className="text-sm text-zinc-500">
         <Link className="hover:text-[var(--brand-700)]" href="/">
           Home
@@ -136,30 +122,45 @@ export default function CartScreen() {
         <span className="text-zinc-700">Shopping Cart</span>
       </div>
 
-      {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">
             Shopping Cart
           </h1>
           <p className="mt-2 text-sm text-zinc-600">
-            {items.length} item{items.length === 1 ? "" : "s"} in your cart
+            {cartItems.length} item{cartItems.length === 1 ? "" : "s"} in your cart
           </p>
         </div>
 
-        <Link
-          href="/search"
-          className="text-sm font-semibold text-[var(--brand-600)] transition hover:text-[var(--brand-700)]"
-        >
-          Continue shopping →
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          {cartItems.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => clearCart()}
+              disabled={isClearing}
+              className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isClearing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Clear cart
+            </button>
+          ) : null}
+
+          <Link
+            href="/search"
+            className="text-sm font-semibold text-[var(--brand-600)] transition hover:text-[var(--brand-700)]"
+          >
+            Continue shopping →
+          </Link>
+        </div>
       </div>
 
       <section className="grid gap-8 lg:grid-cols-3">
-        {/* Left column */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Items Card */}
-          <div className="rounded-3xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
             <div className="border-b border-zinc-200 px-6 py-5">
               <div className="text-sm font-extrabold text-zinc-900">Your Items</div>
               <div className="mt-1 text-xs text-zinc-500">
@@ -167,147 +168,198 @@ export default function CartScreen() {
               </div>
             </div>
 
-            {items.length === 0 ? (
+            {cartItems.length === 0 ? (
               <div className="p-10 text-center">
-                <p className="text-sm text-zinc-600">Your cart is empty.</p>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand-50)] text-[var(--brand-600)]">
+                  <ShoppingBag className="h-8 w-8" />
+                </div>
+
+                <h2 className="mt-4 text-xl font-extrabold text-zinc-900">
+                  Your cart is empty
+                </h2>
+                <p className="mt-2 text-sm text-zinc-600">
+                  Looks like you haven’t added anything yet.
+                </p>
+
                 <Link
-                  href="/"
-                  className="mt-4 inline-flex rounded-full bg-[var(--brand-600)] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-700)]"
+                  href="/search"
+                  className="mt-5 inline-flex rounded-full bg-[var(--brand-600)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-700)]"
                 >
-                  Go Home
+                  Start shopping
                 </Link>
               </div>
             ) : (
               <div className="divide-y divide-zinc-200">
-                {items.map((it) => (
-                  <div key={it.id} className="px-6 py-5">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                      {/* Left */}
-                      <Link
-                        href={`/product/${it.id}`}
-                        className="flex items-center gap-4"
-                      >
-                        <div className="relative h-16 w-16 overflow-hidden rounded-2xl bg-zinc-50">
-                          <Image src={it.image} alt={it.name} fill className="object-cover" />
-                        </div>
+                {paginatedCartItems.map((item: any) => {
+                  const product = item?.product;
+                  const productId = product?._id;
+                  const count = item?.count ?? 1;
+                  const unitPrice = Number(item?.price ?? product?.price ?? 0);
+                  const totalItemPrice = unitPrice * count;
+                  const image =
+                    product?.imageCover ||
+                    product?.images?.[0] ||
+                    "/placeholder-product.png";
 
-                        <div>
-                          <div className="text-sm font-semibold text-zinc-900 hover:text-[var(--brand-700)]">
-                            {it.name}
+                  return (
+                    <div key={productId} className="px-6 py-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <Link href={`/product/${productId}`} className="flex items-center gap-4">
+                          <div className="relative h-16 w-16 overflow-hidden rounded-2xl bg-zinc-50">
+                            <Image
+                              src={image}
+                              alt={product?.title ?? "Product"}
+                              fill
+                              className="object-cover"
+                            />
                           </div>
-                          <div className="mt-1 text-xs text-zinc-500">
-                            {it.category ?? "Category"}
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <Stars rating={it.rating ?? 4} />
-                            <span className="text-xs text-zinc-500">(149)</span>
-                          </div>
-                        </div>
-                      </Link>
 
-                      {/* Right */}
-                      <div className="sm:ml-auto flex flex-wrap items-center gap-4">
-                        {/* Qty */}
-                        <div className="flex items-center rounded-2xl border border-zinc-200 bg-white">
-                          <button
-                            onClick={() => changeQty(it.id, -1)}
-                            className="h-10 w-10 rounded-2xl text-lg text-zinc-700 transition hover:bg-[var(--brand-50)]"
-                          >
-                            −
-                          </button>
-                          <div className="w-12 text-center text-sm font-semibold text-zinc-800">
-                            {qty[it.id] ?? 1}
-                          </div>
-                          <button
-                            onClick={() => changeQty(it.id, +1)}
-                            className="h-10 w-10 rounded-2xl text-lg text-zinc-700 transition hover:bg-[var(--brand-50)]"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        {/* Price */}
-                        <div className="min-w-[90px] text-right">
-                          <div className="text-lg font-extrabold text-zinc-900">
-                            ${(it.price * (qty[it.id] ?? 1)).toFixed(2)}
-                          </div>
-                          {it.oldPrice ? (
-                            <div className="text-xs text-zinc-400 line-through">
-                              ${(it.oldPrice * (qty[it.id] ?? 1)).toFixed(2)}
+                          <div>
+                            <div className="line-clamp-1 text-sm font-semibold text-zinc-900 hover:text-[var(--brand-700)]">
+                              {getFirstThreeWords(product?.title)}
                             </div>
-                          ) : null}
-                        </div>
 
-                        {/* Remove */}
-                        <button
-                          onClick={() => removeItem(it.id)}
-                          className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 transition hover:bg-red-50 hover:text-red-600 active:scale-95"
-                          aria-label="Remove item"
-                        >
-                          <FontAwesomeIcon icon={faTrash} />
-                        </button>
+                            <div className="mt-1 text-xs text-zinc-500">
+                              {product?.category?.name ?? "Category"}
+                            </div>
+
+                            <div className="mt-2 flex items-center gap-2">
+                              <Stars rating={product?.ratingsAverage ?? 4} />
+                              <span className="text-xs text-zinc-500">
+                                ({product?.ratingsQuantity ?? 0})
+                              </span>
+                            </div>
+                          </div>
+                        </Link>
+
+                        <div className="sm:ml-auto flex items-center gap-4">
+                          <div className="flex min-w-[150px] flex-col items-end">
+                            <div className="text-lg font-extrabold text-zinc-900">
+                              {formatEGP(totalItemPrice)}
+                            </div>
+
+                            <div className="mt-1 text-xs text-zinc-500">
+                              {formatEGP(unitPrice)} each
+                            </div>
+
+                            <div className="mt-3 flex items-center rounded-2xl border border-zinc-200 bg-white">
+                              <button
+                                onClick={() => handleDecrease(productId, count)}
+                                disabled={count <= 1 || isUpdatingCount || isRemoving}
+                                className="h-10 w-10 rounded-2xl text-lg text-zinc-700 transition hover:bg-[var(--brand-50)] disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                −
+                              </button>
+
+                              <div className="w-12 text-center text-sm font-semibold text-zinc-800">
+                                {count}
+                              </div>
+
+                              <button
+                                onClick={() => handleIncrease(productId, count)}
+                                disabled={isUpdatingCount}
+                                className="h-10 w-10 rounded-2xl text-lg text-zinc-700 transition hover:bg-[var(--brand-50)] disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => removeItem(productId)}
+                            disabled={isRemoving}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-zinc-600 transition hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                            aria-label="Remove item"
+                          >
+                            <FontAwesomeIcon icon={faTrash} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
-          </div>
 
-          {/* Coupon Card */}
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="text-sm font-extrabold text-zinc-900">Apply Coupon</h3>
+            {cartItems.length > ITEMS_PER_PAGE ? (
+              <div className="flex items-center justify-center gap-3 border-t border-zinc-200 px-6 py-5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-700 transition hover:border-[var(--brand-300)] hover:text-[var(--brand-700)] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ‹
+                </button>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <input
-                placeholder="Enter coupon code"
-                className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--brand-200)] focus:ring-4 focus:ring-[var(--brand-50)]"
-              />
-              <button className="rounded-2xl bg-[var(--brand-600)] px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] active:scale-95">
-                Apply
-              </button>
-            </div>
+                {Array.from({ length: totalPages }).map((_, index) => {
+                  const page = index + 1;
+                  const active = currentPage === page;
 
-            {/* Applied (UI only) */}
-            {items.length ? (
-              <div className="mt-4 rounded-2xl border border-[var(--brand-100)] bg-[var(--brand-50)]/60 p-4 text-sm text-zinc-700">
-                <span className="font-semibold text-[var(--brand-700)]">{couponCode}</span>{" "}
-                Applied
-                <span className="float-right font-extrabold text-[var(--brand-700)]">
-                  - ${discount.toFixed(2)}
-                </span>
+                  return (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={[
+                        "flex h-12 w-12 items-center justify-center rounded-2xl border text-lg font-semibold transition",
+                        active
+                          ? "border-[var(--brand-600)] bg-[var(--brand-600)] text-white"
+                          : "border-zinc-200 bg-white text-zinc-800 hover:border-[var(--brand-300)] hover:text-[var(--brand-700)]",
+                      ].join(" ")}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-700 transition hover:border-[var(--brand-300)] hover:text-[var(--brand-700)] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ›
+                </button>
               </div>
             ) : null}
           </div>
+
+          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h3 className="text-sm font-extrabold text-zinc-900">Coupon</h3>
+
+            <div className="mt-4 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+              Coupon logic will be connected later in checkout flow.
+            </div>
+          </div>
         </div>
 
-        {/* Summary */}
-        <aside className="h-fit rounded-3xl border border-white/40 bg-white/70 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-6">
+        <aside className="h-fit rounded-3xl border border-white/40 bg-white/70 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
           <h2 className="text-lg font-extrabold text-zinc-900">Order Summary</h2>
 
           <div className="mt-5 space-y-3 text-sm">
             <div className="flex justify-between text-zinc-700">
-              <span>Subtotal ({items.length} items)</span>
-              <span className="font-semibold">${subtotal.toFixed(2)}</span>
+              <span>Subtotal ({cartItems.length} items)</span>
+              <span className="font-semibold">{formatEGP(subtotal)}</span>
             </div>
 
             <div className="flex justify-between text-zinc-700">
               <span>Shipping</span>
               <span className="font-semibold text-[var(--brand-700)]">
-                {shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}
+                {shipping === 0 ? "Free" : formatEGP(shipping)}
               </span>
             </div>
 
             <div className="flex justify-between text-zinc-700">
-              <span>Discount ({couponCode})</span>
+              <span>Discount</span>
               <span className="font-semibold text-[var(--brand-700)]">
-                - ${discount.toFixed(2)}
+                {discount > 0 ? `- ${formatEGP(discount)}` : "—"}
               </span>
             </div>
 
             <div className="flex justify-between text-zinc-700">
               <span>Tax</span>
-              <span className="font-semibold">${tax.toFixed(2)}</span>
+              <span className="font-semibold">{tax > 0 ? formatEGP(tax) : "—"}</span>
             </div>
 
             <div className="my-2 h-px bg-white/50" />
@@ -315,31 +367,34 @@ export default function CartScreen() {
             <div className="flex justify-between text-zinc-900">
               <span className="font-bold">Total</span>
               <span className="font-extrabold text-[var(--brand-700)]">
-                ${total.toFixed(2)}
+                {formatEGP(total)}
               </span>
             </div>
           </div>
 
           <Link
-            href="/checkout"
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[var(--brand-600)] px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]"
+            href={cartId ? `/checkout?cartId=${cartId}` : "/checkout"}
+            className={`mt-6 inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white transition-all duration-300 ${
+              cartItems.length
+                ? "bg-[var(--brand-600)] hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]"
+                : "pointer-events-none bg-zinc-300"
+            }`}
           >
             Proceed to Checkout
           </Link>
 
           <Link
             href="/search"
-            className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-zinc-200 bg-white/80 backdrop-blur px-6 py-3 text-sm font-semibold text-zinc-900 transition-all duration-300 hover:shadow-md active:scale-[0.98]"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-zinc-200 bg-white/80 px-6 py-3 text-sm font-semibold text-zinc-900 transition-all duration-300 hover:shadow-md active:scale-[0.98] backdrop-blur"
           >
             Continue Shopping
           </Link>
 
-          {/* Small features like the design */}
           <div className="mt-6 space-y-3">
-            <div className="rounded-2xl border border-zinc-200 bg-white/80 backdrop-blur p-4">
+            <div className="rounded-2xl border border-zinc-200 bg-white/80 p-4 backdrop-blur">
               <div className="text-sm font-bold text-zinc-900">Free Delivery</div>
               <div className="mt-1 text-xs text-zinc-600">
-                Estimated delivery: 2–3 business days.
+                Delivery details will appear at checkout.
               </div>
             </div>
 
@@ -353,51 +408,7 @@ export default function CartScreen() {
         </aside>
       </section>
 
-      {/* You might also like */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-extrabold text-zinc-900">You might also like</h2>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {youMayAlsoLike.map((p) => (
-            <Link
-              key={p.id}
-              href={`/product/${p.id}`}
-              className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="relative h-48 w-full bg-zinc-50">
-                <Image
-                  src={p.image}
-                  alt={p.name}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              </div>
-
-              <div className="p-4">
-                <div className="text-xs text-zinc-500">{p.category ?? "Category"}</div>
-                <div className="mt-1 line-clamp-1 text-sm font-semibold text-zinc-900 group-hover:text-[var(--brand-700)]">
-                  {p.name}
-                </div>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <Stars rating={p.rating ?? 4} />
-                </div>
-
-                <div className="mt-3 flex items-end justify-between">
-                  <div className="text-lg font-extrabold text-[var(--brand-700)]">
-                    ${p.price.toFixed(2)}
-                  </div>
-
-                    {/* plus sign */}
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-50)] text-[var(--brand-700)] transition-all duration-300 group-hover:bg-[var(--brand-600)] group-hover:text-white">
-                    <FontAwesomeIcon icon={faPlus} className="text-sm" />
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <RecentlyViewedStrip />
     </div>
   );
 }
