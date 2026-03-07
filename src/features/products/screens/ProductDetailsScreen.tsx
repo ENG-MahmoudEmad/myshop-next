@@ -61,23 +61,16 @@ function getUserIdFromTokenSafe() {
 
 function getApiErrorMessage(e: any) {
   const d = e?.response?.data;
-  // RouteMisr أحياناً بيرجع errors: [{ msg: "..." }]
   const firstErr =
     Array.isArray(d?.errors) && d.errors.length ? d.errors[0]?.msg : null;
 
-  return (
-    firstErr ||
-    d?.message ||
-    e?.message ||
-    "Something went wrong"
-  );
+  return firstErr || d?.message || e?.message || "Something went wrong";
 }
 
 function isAlreadyReviewedError(e: any) {
   const msg = String(getApiErrorMessage(e) || "").toLowerCase();
-  // غطّي كذا صيغة محتملة
   return (
-    msg.includes("already") && msg.includes("review") ||
+    (msg.includes("already") && msg.includes("review")) ||
     msg.includes("reviewed") ||
     msg.includes("already reviewed")
   );
@@ -90,14 +83,12 @@ export default function ProductDetailsScreen({ id }: Props) {
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState<"details" | "reviews" | "shipping">("details");
 
-  // ---------- Product ----------
   const productQ = useProduct(id, { staleTimeMs: 60_000, gcTimeMs: 10 * 60_000 });
   const product: any =
-  (productQ.data as any)?.data?.data ??
-  (productQ.data as any)?.data ??
-  (productQ.data as any);
+    (productQ.data as any)?.data?.data ??
+    (productQ.data as any)?.data ??
+    productQ.data;
 
-  // ---------- Reviews ----------
   const reviewsQ = useProductReviews(id);
 
   const qc = useQueryClient();
@@ -124,7 +115,6 @@ export default function ProductDetailsScreen({ id }: Props) {
 
   const reviewsCount = reviewsList.length;
 
-  // ✅ my review (لو موجود)
   const myReview = useMemo(() => {
     if (!myUserId) return null;
     return (
@@ -135,7 +125,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     );
   }, [reviewsList, myUserId]);
 
-  // ✅ Add / Edit review state
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState<number>(5);
   const addReviewM = useAddReview(id);
@@ -157,7 +146,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     }
 
     try {
-      // ✅ لو مش في وضع edit لكن عنده review أصلاً → دخّله edit بدل fail
       if (!editingId && myReview?._id) {
         setEditingId(String(myReview._id));
         setReviewText(
@@ -182,7 +170,6 @@ export default function ProductDetailsScreen({ id }: Props) {
       setReviewText("");
       setReviewRating(5);
     } catch (e: any) {
-      // ✅ لو فعلاً API رجع already reviewed
       if (isAlreadyReviewedError(e) && myReview?._id) {
         setEditingId(String(myReview._id));
         setReviewText(
@@ -199,7 +186,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     }
   };
 
-  // ---------- Related ----------
   const relatedQ = useProducts(
     { limit: 20, sort: "-createdAt" },
     { staleTimeMs: 30_000, gcTimeMs: 5 * 60_000 }
@@ -210,7 +196,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     return list.filter((p) => p?._id !== id).slice(0, 8);
   }, [relatedQ.data, id]);
 
-  // ---------- Wishlist ----------
   const wishlistQ = useWishlist();
   const addWishM = useAddToWishlist();
   const removeWishM = useRemoveFromWishlist();
@@ -252,7 +237,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     }
   };
 
-  // ---------- Price ----------
   const unitPrice = useMemo(() => {
     const pad = product?.priceAfterDiscount;
     const price = product?.price;
@@ -277,17 +261,47 @@ export default function ProductDetailsScreen({ id }: Props) {
 
   // ---------- Images ----------
   const images: string[] = useMemo(() => {
-    const arr = Array.isArray(product?.images) ? product.images.filter(Boolean) : [];
-    const cover = product?.imageCover ? [product.imageCover] : [];
-    const all = [...cover, ...arr].filter(Boolean);
-    return Array.from(new Set(all));
-  }, [product?.images, product?.imageCover]);
+    const rawImages = [
+      product?.imageCover,
+      ...(Array.isArray(product?.images) ? product.images : []),
+    ]
+      .filter((img): img is string => typeof img === "string" && img.trim().length > 0)
+      .map((img) => img.trim());
+
+    const uniqueMap = new Map<string, string>();
+
+    rawImages.forEach((img) => {
+      const clean = img.split("?")[0].split("#")[0].trim();
+      const fileName = clean.split("/").pop()?.toLowerCase() ?? clean.toLowerCase();
+
+      // remove extension
+      const withoutExt = fileName.replace(/\.[a-z0-9]+$/i, "");
+
+      // normalize things like -1, -2, _1, _2, copy
+      const normalizedKey = withoutExt
+        .replace(/[-_](copy|\d+)$/i, "")
+        .replace(/\s+/g, "");
+
+      if (!uniqueMap.has(normalizedKey)) {
+        uniqueMap.set(normalizedKey, img);
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [product?.imageCover, product?.images]);
 
   useEffect(() => {
-    if (!activeImage && images.length) setActiveImage(images[0]);
-  }, [images, activeImage]);
+    if (!images.length) {
+      setActiveImage(null);
+      return;
+    }
 
-  // ---------- Recently Viewed ----------
+    setActiveImage((prev) => {
+      if (prev && images.includes(prev)) return prev;
+      return images[0];
+    });
+  }, [images]);
+
   useEffect(() => {
     if (!product?._id) return;
 
@@ -301,7 +315,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?._id]);
 
-  // ---------- Breadcrumb short title ----------
   const breadcrumbTitle = useMemo(() => {
     const t = String(product?.title ?? "");
     if (!t) return `Product #${id}`;
@@ -309,7 +322,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     return parts.slice(0, 3).join(" ");
   }, [product?.title, id]);
 
-  // ---------- Cart ----------
   const addCartM = useAddToCart();
   const inStock = (product?.quantity ?? 1) > 0;
 
@@ -325,7 +337,6 @@ export default function ProductDetailsScreen({ id }: Props) {
 
   const onBuyNow = () => router.push("/cart");
 
-  // ---------- Share ----------
   const onShare = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
     if (!url) return;
@@ -342,7 +353,6 @@ export default function ProductDetailsScreen({ id }: Props) {
     }
   };
 
-  // ---------- Loading / Error ----------
   if (productQ.isLoading) {
     return (
       <div className={`${GLASS} rounded-3xl p-8 text-center`}>
@@ -362,7 +372,6 @@ export default function ProductDetailsScreen({ id }: Props) {
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb */}
       <div className="text-sm text-zinc-500">
         <Link className="hover:text-[var(--brand-700)]" href="/">Home</Link>
         <span className="mx-2">/</span>
@@ -371,9 +380,7 @@ export default function ProductDetailsScreen({ id }: Props) {
         <span className="text-zinc-700">{breadcrumbTitle}</span>
       </div>
 
-      {/* Top Section */}
       <section className="grid gap-8 lg:grid-cols-2 lg:items-start">
-        {/* Gallery */}
         <div className="space-y-4">
           <div className={`${GLASS} group relative aspect-square overflow-hidden rounded-3xl`}>
             {activeImage ? (
@@ -389,11 +396,12 @@ export default function ProductDetailsScreen({ id }: Props) {
           </div>
 
           <div className="grid grid-cols-4 gap-3">
-            {images.slice(0, 8).map((src) => {
+            {images.slice(0, 8).map((src, index) => {
               const active = src === activeImage;
+
               return (
                 <button
-                  key={src}
+                  key={`${src}-${index}`}
                   type="button"
                   onClick={() => setActiveImage(src)}
                   className={[
@@ -403,14 +411,18 @@ export default function ProductDetailsScreen({ id }: Props) {
                       : "border-zinc-200 hover:-translate-y-0.5 hover:shadow-md",
                   ].join(" ")}
                 >
-                  <Image src={src} alt="Thumb" fill className="object-cover" />
+                  <Image
+                    src={src}
+                    alt={`${product.title ?? "Product"} thumbnail ${index + 1}`}
+                    fill
+                    className="object-cover"
+                  />
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Info Panel */}
         <div className={`${GLASS} rounded-3xl p-6 sm:p-8`}>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -463,7 +475,6 @@ export default function ProductDetailsScreen({ id }: Props) {
             </div>
           </div>
 
-          {/* Price */}
           <div className="mt-5 flex flex-wrap items-end gap-3">
             <div className="text-3xl font-extrabold text-[var(--brand-700)]">
               {totalPrice.toLocaleString("en-US")} EGP
@@ -490,7 +501,6 @@ export default function ProductDetailsScreen({ id }: Props) {
             {(product?.description as string) ?? "No description available yet."}
           </p>
 
-          {/* Quantity */}
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <span className="w-12 text-sm font-semibold text-zinc-800">Qty:</span>
 
@@ -517,7 +527,6 @@ export default function ProductDetailsScreen({ id }: Props) {
             </span>
           </div>
 
-          {/* Actions */}
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
@@ -543,7 +552,6 @@ export default function ProductDetailsScreen({ id }: Props) {
         </div>
       </section>
 
-      {/* Tabs */}
       <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
         <div className="relative flex flex-wrap gap-2 border-b border-zinc-200 bg-[var(--brand-50)]/50 px-4 py-3">
           {[
@@ -581,7 +589,6 @@ export default function ProductDetailsScreen({ id }: Props) {
             </div>
           ) : tab === "reviews" ? (
             <div className="space-y-6">
-              {/* Add / Edit Review Box */}
               <div className="rounded-3xl border border-zinc-200 bg-white/60 p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm font-extrabold text-zinc-900">
@@ -651,7 +658,6 @@ export default function ProductDetailsScreen({ id }: Props) {
                 </div>
               </div>
 
-              {/* Reviews List */}
               {reviewsQ.isLoading ? (
                 <p className="text-sm text-zinc-600">Loading reviews…</p>
               ) : reviewsQ.isError ? (
@@ -739,7 +745,6 @@ export default function ProductDetailsScreen({ id }: Props) {
         </div>
       </section>
 
-      {/* Related */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-extrabold text-zinc-900">You may also like</h2>
