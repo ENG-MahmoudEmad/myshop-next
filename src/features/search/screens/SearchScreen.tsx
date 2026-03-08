@@ -382,7 +382,7 @@ export default function SearchScreen() {
 
         {/* Recently viewed (UI demo) */}
         <div className="mt-10">
-          <RecentlyViewedStrip items={require("../data/mockSearch").recentlyViewed} />
+          <RecentlyViewedStrip />
         </div>
       </div>
     </div>

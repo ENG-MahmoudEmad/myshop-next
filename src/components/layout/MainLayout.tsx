@@ -573,7 +573,7 @@ export default function MainLayout({ children }: Props) {
           </div>
 
           <div className="border-t-5 border-white/40 py-5 text-center text-[12px] text-zinc-500">
-            © {new Date().getFullYear()} MyStore. All rights reserved.
+            © {new Date().getFullYear()} MyStore. by Mahmoud Emad.
           </div>
         </footer>
       </div>
