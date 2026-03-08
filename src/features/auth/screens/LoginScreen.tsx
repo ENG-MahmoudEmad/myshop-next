@@ -79,16 +79,17 @@ export default function LoginScreen() {
             </div>
 
             {/* Mobile marketing hint */}
-            <div className="mt-6 lg:hidden mx-auto w-full max-w-md">
-              <div className="rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-5">
-                <p className="text-sm font-semibold text-zinc-900">
-                  Fashion & tech, delivered fast
-                </p>
-                <p className="mt-1 text-xs text-zinc-600">
-                  Secure payment • Easy returns • 24/7 support
-                </p>
-              </div>
-            </div>
+            {/* Mobile marketing hint */}
+<div className="mx-auto mt-6 w-full max-w-md lg:hidden">
+  <div className="rounded-3xl border border-white/20 bg-white/65 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
+    <p className="text-sm font-semibold text-zinc-900">
+      Premium brands, delivered fast
+    </p>
+    <p className="mt-1 text-xs text-zinc-600">
+      Fashion • Electronics • Secure checkout
+    </p>
+  </div>
+</div>
           </section>
         </div>
       </div>

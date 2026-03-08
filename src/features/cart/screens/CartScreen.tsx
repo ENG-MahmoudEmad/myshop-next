@@ -28,18 +28,23 @@ function formatEGP(value: number) {
 
 function getFirstThreeWords(text?: string) {
   if (!text) return "Product";
-  return text.split(/\s+/).slice(0, 3).join(" ");
+  return text.trim().split(/\s+/).slice(0, 3).join(" ");
 }
 
 export default function CartScreen() {
   const ITEMS_PER_PAGE = 6;
 
+  const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   const { data, isLoading, isError } = useCart();
   const { mutate: updateCount, isPending: isUpdatingCount } = useUpdateCartItemCount();
   const { mutate: removeItem, isPending: isRemoving } = useRemoveCartItem();
   const { mutate: clearCart, isPending: isClearing } = useClearCart();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const cart = data?.data;
   const cartItems = cart?.products ?? [];
@@ -80,6 +85,10 @@ export default function CartScreen() {
       count: currentCount + 1,
     });
   };
+
+  if (!mounted) {
+    return <div className="space-y-10" />;
+  }
 
   if (isLoading) {
     return (

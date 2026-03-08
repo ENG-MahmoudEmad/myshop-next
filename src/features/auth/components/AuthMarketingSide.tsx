@@ -1,41 +1,49 @@
+import Image from "next/image";
+
 export default function AuthMarketingSide() {
   return (
-    <section className="rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-7 xl:p-8">
-      <div className="group rounded-3xl bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-6 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl">
-        {/* placeholder for image */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-zinc-100">
-          <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-600)]/40 to-transparent" />
-          <div className="absolute bottom-4 left-4">
-            <p className="text-white font-semibold [text-shadow:0_0_12px_rgba(216,67,21,0.5)]">
-              myshop
-            </p>
-            <p className="text-white/90 text-xs">
-              Fresh Groceries Delivered
-            </p>
-          </div>
-        </div>
+    <section className="rounded-3xl border border-white/20 bg-white/65 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md xl:p-8">
+      <div className="group rounded-3xl border border-white/20 bg-white/65 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.05)] transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl">
+        
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl">
+
+  <Image
+    src="/loginauth.png"
+    alt="Men fashion and electronics products"
+    fill
+    className="object-cover transition-transform duration-500 group-hover:scale-105 z-0"
+    priority
+  />
+
+  {/* Orange overlay */}
+  <div className="absolute inset-0 z-10 bg-gradient-to-br from-[var(--brand-600)]/50 via-[var(--brand-600)]/20 to-transparent" />
+
+</div>
       </div>
 
-      <h2 className="mt-6 text-2xl xl:text-3xl font-semibold text-zinc-900">
-        Fresh groceries delivered
+      <h2 className="mt-6 text-2xl font-semibold text-zinc-900 xl:text-3xl">
+        Premium brands, delivered fast
       </h2>
+
       <p className="mt-2 max-w-md text-sm text-zinc-600">
-        Join thousands of happy customers who trust myshop for daily grocery
-        needs.
+        Shop fashion essentials, electronics, and lifestyle picks with secure
+        checkout, fast delivery, and a smooth shopping experience.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-4 text-sm text-zinc-600">
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/65 backdrop-blur-md border border-white/20 px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/65 px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
           <span className="h-2 w-2 rounded-full bg-[var(--brand-600)]" />
-          Free Delivery
+          Fast Delivery
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/65 backdrop-blur-md border border-white/20 px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/65 px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
           <span className="h-2 w-2 rounded-full bg-[var(--brand-600)]" />
-          Secure Payment
+          Secure Checkout
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/65 backdrop-blur-md border border-white/20 px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/65 px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
           <span className="h-2 w-2 rounded-full bg-[var(--brand-600)]" />
-          24/7 Support
+          Trusted Brands
         </div>
       </div>
     </section>

@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useWishlist } from "@/features/wishlist/hooks/useWishlist";
 import {
   faGaugeHigh,
   faBagShopping,
   faHeart,
-  faStar,
   faLocationDot,
-  faCreditCard,
   faUserPen,
   faRightFromBracket,
   faArrowRight,
@@ -17,7 +17,16 @@ import {
   faTruckFast,
   faCalendarDays,
   faCircleCheck,
+  faBoxOpen,
 } from "@fortawesome/free-solid-svg-icons";
+import { toast } from "react-toastify";
+
+import { removeToken } from "@/features/auth/utils/auth-storage";
+import {
+  getLoggedInUserName,
+  getUserInitials,
+} from "@/features/auth/utils/auth-user";
+import { useOrders } from "@/features/orders/hooks/useOrders";
 
 function GlassCard({
   children,
@@ -105,50 +114,130 @@ function StatCard({
   );
 }
 
-const recentOrders = [
-  {
-    id: "ODR-1041",
-    date: "Feb 26, 2026",
-    total: 84.25,
-    items: 4,
-    status: "Delivered",
-    statusIcon: faCircleCheck,
-    statusClass: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  },
-  {
-    id: "ODR-1034",
-    date: "Feb 21, 2026",
-    total: 42.0,
-    items: 2,
-    status: "Out for delivery",
-    statusIcon: faTruckFast,
-    statusClass: "bg-[var(--brand-50)] text-[var(--brand-700)] border-[var(--brand-100)]",
-  },
-  {
-    id: "ODR-1027",
-    date: "Feb 15, 2026",
-    total: 129.99,
-    items: 6,
-    status: "Processing",
-    statusIcon: faReceipt,
-    statusClass: "bg-zinc-50 text-zinc-700 border-zinc-200",
-  },
-];
+function formatEGP(value: number) {
+  return `${value.toFixed(2)} EGP`;
+}
+
+function formatDate(dateString?: string) {
+  if (!dateString) return "—";
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function normalizeOrderStatus(order: any) {
+  if (order?.isDelivered) {
+    return {
+      label: "Delivered",
+      icon: faCircleCheck,
+      className: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    };
+  }
+
+  if (order?.isPaid === false && order?.isDelivered === false) {
+    return {
+      label: "Processing",
+      icon: faReceipt,
+      className: "bg-zinc-50 text-zinc-700 border-zinc-200",
+    };
+  }
+
+  return {
+    label: "Out for delivery",
+    icon: faTruckFast,
+    className: "bg-[var(--brand-50)] text-[var(--brand-700)] border-[var(--brand-100)]",
+  };
+}
 
 export default function AccountDashboardScreen() {
+  const router = useRouter();
+  const { data, isLoading, isError } = useOrders();
+
+  const userName = getLoggedInUserName();
+  const userInitials = getUserInitials(userName);
+  const firstName = userName.trim().split(/\s+/)[0] || "there";
+
+  const orders = useMemo(() => {
+    const raw = Array.isArray(data) ? data : [];
+
+    return raw
+      .map((order: any) => {
+        const status = normalizeOrderStatus(order);
+
+        return {
+          id: order?._id,
+          createdAt: order?.createdAt,
+          date: formatDate(order?.createdAt),
+          total: Number(order?.totalOrderPrice ?? 0),
+          items: Array.isArray(order?.cartItems) ? order.cartItems.length : 0,
+          status: status.label,
+          statusIcon: status.icon,
+          statusClass: status.className,
+        };
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+  }, [data]);
+
+  const { data: wishlistData, isLoading: wishlistLoading } = useWishlist();
+  const wishlistCount = useMemo(() => {
+  const raw = wishlistData?.data ?? wishlistData ?? [];
+  return Array.isArray(raw) ? raw.length : 0;
+}, [wishlistData]);
+
+  const totalOrders = orders.length;
+
+  const recentOrders = useMemo(() => orders.slice(0, 3), [orders]);
+
+  const totalSpent = useMemo(() => {
+    return orders.reduce((sum, order) => sum + order.total, 0);
+  }, [orders]);
+
+  const ordersLast30Days = useMemo(() => {
+    const now = Date.now();
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
+    return orders.filter((order) => {
+      const time = new Date(order.createdAt || 0).getTime();
+      return now - time <= THIRTY_DAYS;
+    }).length;
+  }, [orders]);
+
+  const memberSince = useMemo(() => {
+    if (orders.length === 0) return "New";
+
+    const oldest = orders[orders.length - 1];
+    const year = new Date(oldest.createdAt || 0).getFullYear();
+
+    return Number.isNaN(year) ? "—" : String(year);
+  }, [orders]);
+
+  const handleLogout = () => {
+    removeToken();
+    toast.success("Logged out successfully.");
+    router.push("/login");
+  };
+
   return (
     <div className="space-y-8">
-      {/* Breadcrumb */}
       <div className="text-sm text-zinc-500">
         <Link href="/" className="hover:text-[var(--brand-700)]">
           Home
-        </Link>{" "}
+        </Link>
         <span className="mx-2">/</span>
         <span className="text-zinc-700">My Account</span>
       </div>
 
-      {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/40 bg-white/70 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
+      <div className="relative overflow-hidden rounded-3xl border border-white/40 bg-white/70 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--brand-700)]/30 to-[var(--brand-200)]/45" />
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[var(--brand-600)]/33 blur-3xl" />
         <div className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-[var(--brand-600)]/3 blur-3xl" />
@@ -162,7 +251,7 @@ export default function AccountDashboardScreen() {
               </div>
 
               <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-zinc-900">
-                Welcome back, John 👋
+                Welcome back, {firstName} 👋
               </h1>
               <p className="mt-2 max-w-xl text-sm text-zinc-600">
                 Track your orders, manage your wishlist, and update your profile
@@ -192,18 +281,17 @@ export default function AccountDashboardScreen() {
       </div>
 
       <section className="grid gap-8 lg:grid-cols-3">
-        {/* Sidebar */}
         <GlassCard className="h-fit p-5">
           <div className="flex items-center gap-4 rounded-2xl border border-white/50 bg-white/60 p-4">
-            <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-[var(--brand-50)] text-[var(--brand-700)] font-extrabold">
-              JD
+            <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-[var(--brand-50)] font-extrabold text-[var(--brand-700)]">
+              {userInitials}
             </div>
             <div className="min-w-0">
               <div className="text-sm font-extrabold text-zinc-900">
-                John Doe
+                {userName || "My Account"}
               </div>
               <div className="line-clamp-1 text-xs text-zinc-600">
-                john.doe@example.com
+                Track and manage your orders
               </div>
             </div>
           </div>
@@ -212,16 +300,10 @@ export default function AccountDashboardScreen() {
             <SidebarLink href="/account" icon={faGaugeHigh} label="Dashboard" />
             <SidebarLink href="/orders" icon={faBagShopping} label="Orders" />
             <SidebarLink href="/wishlist" icon={faHeart} label="Wishlist" />
-            <SidebarLink href="/favorites" icon={faStar} label="Favorites" />
             <SidebarLink
               href="/account/addresses"
               icon={faLocationDot}
               label="Addresses"
-            />
-            <SidebarLink
-              href="/account/payment"
-              icon={faCreditCard}
-              label="Payment Methods"
             />
             <SidebarLink
               href="/account/details"
@@ -231,7 +313,11 @@ export default function AccountDashboardScreen() {
 
             <div className="my-3 h-px bg-white/60" />
 
-            <button className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-red-50 hover:text-red-600">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-red-50 hover:text-red-600"
+            >
               <span className="grid h-9 w-9 place-items-center rounded-xl border border-white/60 bg-white/60">
                 <FontAwesomeIcon icon={faRightFromBracket} />
               </span>
@@ -240,37 +326,34 @@ export default function AccountDashboardScreen() {
           </div>
         </GlassCard>
 
-        {/* Main */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Stats */}
+        <div className="space-y-6 lg:col-span-2">
           <div className="grid gap-5 sm:grid-cols-2">
             <StatCard
               title="Total Orders"
-              value="18"
+              value={isLoading ? "..." : String(totalOrders)}
               icon={faBagShopping}
-              hint="2 orders in the last 30 days"
+              hint={`${ordersLast30Days} order${ordersLast30Days === 1 ? "" : "s"} in the last 30 days`}
             />
             <StatCard
-              title="Wishlist Items"
-              value="12"
-              icon={faHeart}
-              hint="Saved for later checkout"
-            />
+  title="Wishlist Items"
+  value={wishlistLoading ? "..." : String(wishlistCount)}
+  icon={faHeart}
+  hint="Saved for later checkout"
+/>
             <StatCard
               title="Total Spent"
-              value="$1,248.50"
+              value={isLoading ? "..." : formatEGP(totalSpent)}
               icon={faReceipt}
               hint="Lifetime purchases"
             />
             <StatCard
               title="Member Since"
-              value="2025"
+              value={isLoading ? "..." : memberSince}
               icon={faCalendarDays}
-              hint="Premium customer benefits"
+              hint="Based on your order history"
             />
           </div>
 
-          {/* Recent Orders */}
           <GlassCard className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/40 px-6 py-5">
               <div>
@@ -290,58 +373,85 @@ export default function AccountDashboardScreen() {
               </Link>
             </div>
 
-            <div className="divide-y divide-white/50">
-              {recentOrders.map((o) => (
-                <div
-                  key={o.id}
-                  className="group px-6 py-5 transition hover:bg-white/60"
+            {isLoading ? (
+              <div className="px-6 py-6 text-sm text-zinc-600">
+                Loading recent orders...
+              </div>
+            ) : isError ? (
+              <div className="px-6 py-6 text-sm text-red-600">
+                Failed to load recent orders.
+              </div>
+            ) : recentOrders.length === 0 ? (
+              <div className="px-6 py-8 text-center">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--brand-50)] text-[var(--brand-700)]">
+                  <FontAwesomeIcon icon={faBoxOpen} className="text-xl" />
+                </div>
+                <div className="mt-4 text-lg font-extrabold text-zinc-900">
+                  No orders yet
+                </div>
+                <p className="mt-2 text-sm text-zinc-600">
+                  Start shopping to see your recent orders here.
+                </p>
+                <Link
+                  href="/search"
+                  className="mt-5 inline-flex rounded-full bg-[var(--brand-600)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-700)]"
                 >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-3">
+                  Start Shopping
+                </Link>
+              </div>
+            ) : (
+              <div className="divide-y divide-white/50">
+                {recentOrders.map((o) => (
+                  <div
+                    key={o.id}
+                    className="group px-6 py-5 transition hover:bg-white/60"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Link
+                            href={`/orders/${o.id}`}
+                            className="text-sm font-extrabold text-zinc-900 group-hover:text-[var(--brand-700)]"
+                          >
+                            {o.id?.slice(-8).toUpperCase()}
+                          </Link>
+
+                          <span
+                            className={[
+                              "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
+                              o.statusClass,
+                            ].join(" ")}
+                          >
+                            <FontAwesomeIcon icon={o.statusIcon} />
+                            {o.status}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 text-xs text-zinc-500">
+                          {o.items} item{o.items === 1 ? "" : "s"} • {o.date}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-lg font-extrabold text-zinc-900">
+                          {formatEGP(o.total)}
+                        </div>
+
                         <Link
-                          href="/orders"
-                          className="text-sm font-extrabold text-zinc-900 group-hover:text-[var(--brand-700)]"
+                          href={`/orders/${o.id}`}
+                          className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-sm font-semibold text-zinc-900 backdrop-blur transition hover:shadow-md active:scale-[0.98]"
                         >
-                          {o.id}
+                          Details
+                          <FontAwesomeIcon icon={faArrowRight} />
                         </Link>
-
-                        <span
-                          className={[
-                            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
-                            o.statusClass,
-                          ].join(" ")}
-                        >
-                          <FontAwesomeIcon icon={o.statusIcon} />
-                          {o.status}
-                        </span>
                       </div>
-
-                      <div className="mt-2 text-xs text-zinc-500">
-                        {o.items} items • {o.date}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-lg font-extrabold text-zinc-900">
-                        ${o.total.toFixed(2)}
-                      </div>
-
-                      <Link
-                        href="/orders"
-                        className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-4 py-2 text-sm font-semibold text-zinc-900 backdrop-blur transition hover:shadow-md active:scale-[0.98]"
-                      >
-                        Details
-                        <FontAwesomeIcon icon={faArrowRight} />
-                      </Link>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
 
-          {/* Quick Actions */}
           <div className="grid gap-5 sm:grid-cols-2">
             <GlassCard className="p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)]">
               <div className="text-sm font-extrabold text-zinc-900">
@@ -363,7 +473,11 @@ export default function AccountDashboardScreen() {
                   href="/wishlist"
                   className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-5 py-2 text-sm font-semibold text-zinc-900 backdrop-blur transition hover:shadow-md active:scale-[0.98]"
                 >
-                  Wishlist <FontAwesomeIcon icon={faHeart} className="text-[var(--brand-700)]" />
+                  Wishlist{" "}
+                  <FontAwesomeIcon
+                    icon={faHeart}
+                    className="text-[var(--brand-700)]"
+                  />
                 </Link>
               </div>
             </GlassCard>

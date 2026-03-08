@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheck,
@@ -11,23 +12,19 @@ import {
   faCreditCard,
   faArrowRight,
   faArrowLeft,
+  faLocationDot,
 } from "@fortawesome/free-solid-svg-icons";
+import { toast } from "react-toastify";
+
+import RecentlyViewedStrip from "@/features/search/components/RecentlyViewedStrip";
+import { useCart, CART_QUERY_KEY } from "@/features/cart/hooks/useCart";
+import { useCreateCashOrder } from "../hooks/useCreateCashOrder";
+import { useCreateCheckoutSession } from "../hooks/useCreateCheckoutSession";
+import { useAddresses } from "@/features/account/hooks/useAddresses";
+import { getDefaultAddressId } from "@/features/account/utils/default-address";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Method = "cod" | "online";
-
-type Item = {
-  id: string;
-  name: string;
-  price: number;
-  qty: number;
-  image: string;
-};
-
-const items: Item[] = [
-  { id: "202", name: "Organic Fresh Apples", price: 3.99, qty: 1, image: "/products/p3.png" },
-  { id: "301", name: "Organic Whole Milk", price: 4.29, qty: 1, image: "/products/p1.png" },
-  { id: "302", name: "Artisan Sourdough Bread", price: 3.99, qty: 1, image: "/products/p2.png" },
-];
 
 function Stepper() {
   const steps = [
@@ -64,39 +61,198 @@ function Stepper() {
   );
 }
 
-function Input({ label, placeholder }: { label: string; placeholder?: string }) {
-  return (
-    <label className="block">
-      <span className="text-xs font-semibold text-zinc-700">{label}</span>
-      <input
-        placeholder={placeholder}
-        className="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--brand-200)] focus:ring-4 focus:ring-[var(--brand-50)]"
-      />
-    </label>
-  );
+function formatEGP(value: number) {
+  return `${value.toFixed(2)} EGP`;
+}
+
+function getFirstThreeWords(text?: string) {
+  if (!text) return "Product";
+  return text.trim().split(/\s+/).slice(0, 3).join(" ");
+}
+
+function parseAddressName(rawName?: string) {
+  const value = String(rawName || "").trim();
+
+  if (!value) {
+    return {
+      fullName: "Address",
+      displayLabel: "Other",
+    };
+  }
+
+  if (value.endsWith(" - Home")) {
+    return {
+      fullName: value.replace(/ - Home$/, ""),
+      displayLabel: "Home",
+    };
+  }
+
+  if (value.endsWith(" - Work")) {
+    return {
+      fullName: value.replace(/ - Work$/, ""),
+      displayLabel: "Work",
+    };
+  }
+
+  const otherMatch = value.match(/ - Other(?::\s*(.*))?$/);
+  if (otherMatch) {
+    return {
+      fullName: value.replace(/ - Other(?::\s*.*)?$/, ""),
+      displayLabel: (otherMatch[1] || "").trim() || "Other",
+    };
+  }
+
+  return {
+    fullName: value,
+    displayLabel: "Other",
+  };
 }
 
 export default function CheckoutScreen() {
-  const [method, setMethod] = useState<Method>("online");
-  const [sameAsDelivery, setSameAsDelivery] = useState(true);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const cartIdFromQuery = searchParams.get("cartId") ?? "";
 
-  const subtotal = useMemo(
-    () => items.reduce((s, it) => s + it.price * it.qty, 0),
-    []
-  );
-  const discount = 2.46;
-  const delivery = 4.99;
-  const tax = 0.98;
+  const [method, setMethod] = useState<Method>("online");
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [didShowEmptyCartToast, setDidShowEmptyCartToast] = useState(false);
+
+  const { data, isLoading, isError } = useCart();
+  const { data: addressesData, isLoading: isAddressesLoading } = useAddresses();
+
+  const { mutateAsync: createCashOrder, isPending: isCreatingCash } = useCreateCashOrder();
+  const { mutateAsync: createCheckoutSession, isPending: isCreatingOnline } =
+    useCreateCheckoutSession();
+
+  const cart = data?.data;
+  const cartItems = cart?.products ?? [];
+  const cartId = cartIdFromQuery || cart?._id || cart?.id || "";
+
+  const rawAddresses = addressesData?.data ?? addressesData?.addresses ?? [];
+  const addresses = useMemo(() => {
+    return (rawAddresses as any[]).map((address) => {
+      const parsed = parseAddressName(address?.name);
+
+      return {
+        id: address?._id,
+        name: parsed.fullName,
+        displayLabel: parsed.displayLabel,
+        phone: address?.phone || "",
+        details: address?.details || "",
+        city: address?.city || "",
+      };
+    });
+  }, [rawAddresses]);
+
+  useEffect(() => {
+    if (addresses.length === 0) return;
+
+    const defaultAddressId = getDefaultAddressId();
+
+    if (defaultAddressId && addresses.some((address) => address.id === defaultAddressId)) {
+      setSelectedAddressId(defaultAddressId);
+      return;
+    }
+
+    setSelectedAddressId((current) => current ?? addresses[0].id);
+  }, [addresses]);
+
+  useEffect(() => {
+    if (!isLoading && cartItems.length === 0 && !didShowEmptyCartToast) {
+      toast.error("There are no items in your cart");
+      setDidShowEmptyCartToast(true);
+    }
+  }, [isLoading, cartItems.length, didShowEmptyCartToast]);
+
+  const selectedAddress = useMemo(() => {
+    return addresses.find((address) => address.id === selectedAddressId) ?? null;
+  }, [addresses, selectedAddressId]);
+
+  const subtotal = useMemo(() => Number(cart?.totalCartPrice ?? 0), [cart]);
+  const discount = 0;
+  const delivery = 0;
+  const tax = 0;
   const total = subtotal - discount + delivery + tax;
+
+  const isSubmitting = isCreatingCash || isCreatingOnline;
+
+  const handleSubmit = async () => {
+    if (!cartId || cartItems.length === 0) {
+      toast.error("There are no items in your cart");
+      return;
+    }
+
+    if (!selectedAddress) {
+      toast.error("Please select a delivery address");
+      return;
+    }
+
+    const shippingAddress = {
+      details: selectedAddress.details.trim(),
+      phone: selectedAddress.phone.trim(),
+      city: selectedAddress.city.trim(),
+    };
+
+    try {
+      if (method === "cod") {
+        await createCashOrder({
+          cartId,
+          shippingAddress,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+        toast.success("Order placed successfully");
+        router.push("/cart");
+        return;
+      }
+
+      const returnUrl =
+        typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+
+      const response = await createCheckoutSession({
+        cartId,
+        shippingAddress,
+        returnUrl,
+      });
+
+      const sessionUrl =
+        response?.session?.url ||
+        response?.url ||
+        response?.sessionUrl ||
+        response?.data?.session?.url;
+
+      if (sessionUrl && typeof window !== "undefined") {
+        window.location.href = sessionUrl;
+        return;
+      }
+
+      toast.error("Unable to start payment session. Please try again.");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Something went wrong. Please try again.";
+
+      if (String(message).toLowerCase().includes("no cart")) {
+        await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+        toast.error("There are no items in your cart");
+        router.push("/cart");
+        return;
+      }
+
+      toast.error(message);
+    }
+  };
 
   return (
     <div className="space-y-10">
-      {/* Header row */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">Checkout</h1>
           <p className="mt-2 text-sm text-zinc-600">
-            Choose payment method and enter billing details.
+            Choose payment method and review your order details.
           </p>
         </div>
 
@@ -104,21 +260,18 @@ export default function CheckoutScreen() {
       </div>
 
       <section className="grid gap-8 lg:grid-cols-3">
-        {/* Left side */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Payment Method */}
-          <div className="rounded-3xl border border-white/40 bg-white/70 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="rounded-3xl border border-white/40 bg-white/70 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
             <div className="border-b border-white/40 px-6 py-5">
               <h2 className="text-sm font-extrabold text-zinc-900">Payment Method</h2>
             </div>
 
-            <div className="p-6 space-y-4">
-              {/* COD */}
+            <div className="space-y-4 p-6">
               <button
                 type="button"
                 onClick={() => setMethod("cod")}
                 className={[
-                  "w-full text-left rounded-3xl border p-5 transition-all duration-300",
+                  "w-full rounded-3xl border p-5 text-left transition-all duration-300",
                   method === "cod"
                     ? "border-[var(--brand-300)] bg-white shadow-[0_10px_30px_rgba(216,67,21,0.12)]"
                     : "border-zinc-200 bg-white/80 hover:shadow-md",
@@ -143,8 +296,12 @@ export default function CheckoutScreen() {
                           <FontAwesomeIcon icon={faMoneyBill1Wave} />
                         </span>
                         <div>
-                          <div className="text-sm font-extrabold text-zinc-900">Cash on Delivery</div>
-                          <div className="text-xs text-zinc-600">Pay when your order arrives</div>
+                          <div className="text-sm font-extrabold text-zinc-900">
+                            Cash on Delivery
+                          </div>
+                          <div className="text-xs text-zinc-600">
+                            Pay when your order arrives
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -154,16 +311,15 @@ export default function CheckoutScreen() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-[var(--brand-100)] bg-[var(--brand-50)]/60 p-4 text-xs text-zinc-700">
-                  Please keep exact change ready for hassle-free delivery
+                  Please keep exact change ready for hassle-free delivery.
                 </div>
               </button>
 
-              {/* Online */}
               <button
                 type="button"
                 onClick={() => setMethod("online")}
                 className={[
-                  "w-full text-left rounded-3xl border p-5 transition-all duration-300",
+                  "w-full rounded-3xl border p-5 text-left transition-all duration-300",
                   method === "online"
                     ? "border-[var(--brand-300)] bg-white shadow-[0_10px_30px_rgba(216,67,21,0.12)]"
                     : "border-zinc-200 bg-white/80 hover:shadow-md",
@@ -179,7 +335,9 @@ export default function CheckoutScreen() {
                           : "border-zinc-300 bg-white",
                       ].join(" ")}
                     >
-                      {method === "online" ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
+                      {method === "online" ? (
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      ) : null}
                     </span>
 
                     <div>
@@ -188,8 +346,12 @@ export default function CheckoutScreen() {
                           <FontAwesomeIcon icon={faCreditCard} />
                         </span>
                         <div>
-                          <div className="text-sm font-extrabold text-zinc-900">Online Payment</div>
-                          <div className="text-xs text-zinc-600">Pay securely with card or wallet</div>
+                          <div className="text-sm font-extrabold text-zinc-900">
+                            Online Payment
+                          </div>
+                          <div className="text-xs text-zinc-600">
+                            Pay securely with card or wallet
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -201,108 +363,233 @@ export default function CheckoutScreen() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-[var(--brand-200)] bg-white p-4 text-xs text-zinc-700">
-                  You will be redirected to secure payment gateway to complete your transaction
+                  You will be redirected to a secure payment gateway to complete your
+                  transaction.
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Billing Address */}
           <div className="rounded-3xl border border-zinc-200 bg-white shadow-sm">
             <div className="border-b border-zinc-200 px-6 py-5">
-              <h2 className="text-sm font-extrabold text-zinc-900">Billing Address</h2>
+              <h2 className="text-sm font-extrabold text-zinc-900">Shipping Address</h2>
             </div>
 
-            <div className="p-6 space-y-5">
-              <label className="flex items-center gap-3 text-sm text-zinc-700">
-                <input
-                  type="checkbox"
-                  checked={sameAsDelivery}
-                  onChange={(e) => setSameAsDelivery(e.target.checked)}
-                  className="h-4 w-4 accent-[var(--brand-600)]"
-                />
-                Same as delivery address
-              </label>
+            <div className="space-y-4 p-6">
+              {isAddressesLoading ? (
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+                  Loading your saved addresses...
+                </div>
+              ) : addresses.length === 0 ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+                    You do not have any saved addresses yet.
+                  </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input label="First Name" placeholder="John" />
-                <Input label="Last Name" placeholder="Doe" />
-              </div>
+                  <Link
+                    href="/account/addresses"
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--brand-600)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-700)]"
+                  >
+                    <FontAwesomeIcon icon={faLocationDot} />
+                    Add Address
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {addresses.map((address) => {
+                    const active = selectedAddressId === address.id;
 
-              <Input label="Address" placeholder="Street address" />
+                    return (
+                      <button
+                        key={address.id}
+                        type="button"
+                        onClick={() => setSelectedAddressId(address.id)}
+                        className={[
+                          "w-full rounded-3xl border p-5 text-left transition-all duration-300",
+                          active
+                            ? "border-[var(--brand-300)] bg-white shadow-[0_10px_30px_rgba(216,67,21,0.12)]"
+                            : "border-zinc-200 bg-white/80 hover:shadow-md",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex gap-3">
+                            <span
+                              className={[
+                                "mt-1 grid h-5 w-5 place-items-center rounded-full border",
+                                active
+                                  ? "border-[var(--brand-600)] bg-[var(--brand-600)] text-white"
+                                  : "border-zinc-300 bg-white",
+                              ].join(" ")}
+                            >
+                              {active ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
+                            </span>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input label="City" placeholder="Your city" />
-                <Input label="ZIP Code" placeholder="12345" />
-              </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-[var(--brand-100)] px-3 py-1 text-xs font-bold text-[var(--brand-700)]">
+                                  {address.displayLabel}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 text-sm font-extrabold text-zinc-900">
+                                {address.name}
+                              </div>
+
+                              <div className="mt-2 text-sm text-zinc-600">
+                                {address.details}
+                              </div>
+
+                              <div className="mt-1 text-sm text-zinc-500">
+                                {address.city} • {address.phone}
+                              </div>
+                            </div>
+                          </div>
+
+                          {active ? (
+                            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                              <FontAwesomeIcon icon={faCheck} />
+                              Selected
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  <div className="pt-2">
+                    <Link
+                      href="/account/addresses"
+                      className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition hover:shadow-md"
+                    >
+                      <FontAwesomeIcon icon={faLocationDot} />
+                      Manage Addresses
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right side summary */}
-        <aside className="h-fit rounded-3xl border border-white/40 bg-white/70 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.05)] p-6">
+        <aside className="h-fit rounded-3xl border border-white/40 bg-white/70 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
           <h2 className="text-lg font-extrabold text-zinc-900">Order Summary</h2>
 
-          {/* Items list */}
-          <div className="mt-5 space-y-4">
-            {items.map((it) => (
-              <div key={it.id} className="flex items-center gap-3">
-                <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-zinc-50">
-                  <Image src={it.image} alt={it.name} fill className="object-cover" />
-                </div>
-                <div className="flex-1">
-                  <div className="line-clamp-1 text-sm font-semibold text-zinc-900">{it.name}</div>
-                  <div className="text-xs text-zinc-500">Qty: {it.qty}</div>
-                </div>
-                <div className="text-sm font-bold text-zinc-900">${it.price.toFixed(2)}</div>
+          {isLoading ? (
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-white/80 p-4 text-sm text-zinc-600">
+              Loading your order...
+            </div>
+          ) : isError ? (
+            <div className="mt-5 rounded-2xl border border-red-100 bg-red-50/70 p-4 text-sm text-red-700">
+              Failed to load cart data.
+            </div>
+          ) : cartItems.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-white/80 p-4 text-sm text-zinc-600">
+              Your cart is empty.
+            </div>
+          ) : (
+            <>
+              <div className="mt-5 space-y-4">
+                {cartItems.map((item: any) => {
+                  const product = item?.product;
+                  const image =
+                    product?.imageCover ||
+                    product?.images?.[0] ||
+                    "/placeholder-product.png";
+                  const count = Number(item?.count ?? 1);
+                  const unitPrice = Number(item?.price ?? product?.price ?? 0);
+
+                  return (
+                    <div key={product?._id} className="flex items-center gap-3">
+                      <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-zinc-50">
+                        <Image
+                          src={image}
+                          alt={product?.title ?? "Product"}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="line-clamp-1 text-sm font-semibold text-zinc-900">
+                          {getFirstThreeWords(product?.title)}
+                        </div>
+                        <div className="text-xs text-zinc-500">Qty: {count}</div>
+                      </div>
+
+                      <div className="text-sm font-bold text-zinc-900">
+                        {formatEGP(unitPrice * count)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
 
-          <div className="mt-6 space-y-3 text-sm">
-            <div className="flex justify-between text-zinc-700">
-              <span>Subtotal</span>
-              <span className="font-semibold">${subtotal.toFixed(2)}</span>
-            </div>
+              <div className="mt-6 space-y-3 text-sm">
+                <div className="flex justify-between text-zinc-700">
+                  <span>Subtotal</span>
+                  <span className="font-semibold">{formatEGP(subtotal)}</span>
+                </div>
 
-            <div className="flex justify-between text-zinc-700">
-              <span>Discount</span>
-              <span className="font-semibold text-[var(--brand-700)]">- ${discount.toFixed(2)}</span>
-            </div>
+                <div className="flex justify-between text-zinc-700">
+                  <span>Discount</span>
+                  <span className="font-semibold text-[var(--brand-700)]">
+                    {discount > 0 ? `- ${formatEGP(discount)}` : "—"}
+                  </span>
+                </div>
 
-            <div className="flex justify-between text-zinc-700">
-              <span>Delivery</span>
-              <span className="font-semibold">${delivery.toFixed(2)}</span>
-            </div>
+                <div className="flex justify-between text-zinc-700">
+                  <span>Delivery</span>
+                  <span className="font-semibold">
+                    {delivery > 0 ? formatEGP(delivery) : "Free"}
+                  </span>
+                </div>
 
-            <div className="flex justify-between text-zinc-700">
-              <span>Tax</span>
-              <span className="font-semibold">${tax.toFixed(2)}</span>
-            </div>
+                <div className="flex justify-between text-zinc-700">
+                  <span>Tax</span>
+                  <span className="font-semibold">
+                    {tax > 0 ? formatEGP(tax) : "—"}
+                  </span>
+                </div>
 
-            <div className="my-2 h-px bg-white/50" />
+                <div className="my-2 h-px bg-white/50" />
 
-            <div className="flex justify-between text-zinc-900">
-              <span className="font-bold">Total</span>
-              <span className="font-extrabold text-[var(--brand-700)]">${total.toFixed(2)}</span>
-            </div>
-          </div>
+                <div className="flex justify-between text-zinc-900">
+                  <span className="font-bold">Total</span>
+                  <span className="font-extrabold text-[var(--brand-700)]">
+                    {formatEGP(total)}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
 
-          <button className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-600)] px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]">
-            Proceed to Payment
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!cartId || cartItems.length === 0 || isSubmitting || !selectedAddress}
+            className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition-all duration-300 ${
+              cartItems.length > 0 && !isSubmitting && selectedAddress
+                ? "bg-[var(--brand-600)] hover:bg-[var(--brand-700)] hover:shadow-lg active:scale-[0.98]"
+                : "cursor-not-allowed bg-zinc-300"
+            }`}
+          >
+            {isSubmitting
+              ? "Processing..."
+              : method === "online"
+                ? "Proceed to Payment"
+                : "Place Cash Order"}
             <FontAwesomeIcon icon={faArrowRight} />
           </button>
 
           <Link
             href="/cart"
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white/80 backdrop-blur px-6 py-3 text-sm font-semibold text-zinc-900 transition-all duration-300 hover:shadow-md active:scale-[0.98]"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-6 py-3 text-sm font-semibold text-zinc-900 transition-all duration-300 hover:shadow-md active:scale-[0.98] backdrop-blur"
           >
             <FontAwesomeIcon icon={faArrowLeft} />
             Return to Cart
           </Link>
 
-          {/* Secure checkout */}
-          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white/80 backdrop-blur p-4">
+          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white/80 p-4 backdrop-blur">
             <div className="flex items-center gap-2 text-sm font-bold text-zinc-900">
               <FontAwesomeIcon icon={faLock} className="text-[var(--brand-700)]" />
               Secure Checkout
@@ -332,52 +619,7 @@ export default function CheckoutScreen() {
         </aside>
       </section>
 
-      {/* You Might Also Like (reuse from cart later if you want) */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-extrabold text-zinc-900">You might also like</h2>
-          <div className="flex gap-2">
-            <button className="h-10 w-10 rounded-full border border-zinc-200 bg-white transition hover:bg-[var(--brand-50)]">
-              ‹
-            </button>
-            <button className="h-10 w-10 rounded-full border border-zinc-200 bg-white transition hover:bg-[var(--brand-50)]">
-              ›
-            </button>
-          </div>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {items.map((p) => (
-            <Link
-              key={p.id + "_like"}
-              href={`/product/${p.id}`}
-              className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="relative h-48 w-full bg-zinc-50">
-                <Image
-                  src={p.image}
-                  alt={p.name}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              </div>
-              <div className="p-4">
-                <div className="line-clamp-1 text-sm font-semibold text-zinc-900 group-hover:text-[var(--brand-700)]">
-                  {p.name}
-                </div>
-                <div className="mt-2 flex items-end justify-between">
-                  <div className="text-lg font-extrabold text-[var(--brand-700)]">
-                    ${p.price.toFixed(2)}
-                  </div>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-50)] text-[var(--brand-700)] transition-all duration-300 group-hover:bg-[var(--brand-600)] group-hover:text-white">
-                    +
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <RecentlyViewedStrip />
     </div>
   );
 }

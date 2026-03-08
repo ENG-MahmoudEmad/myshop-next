@@ -1,7 +1,10 @@
 import OrderDetailsScreen from "@/features/orders/screens/OrderDetailsScreen";
 
-type Props = { params: { id: string } };
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
-export default function Page({ params }: Props) {
-  return <OrderDetailsScreen id={params.id} />;
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  return <OrderDetailsScreen id={id} />;
 }

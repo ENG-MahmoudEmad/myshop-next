@@ -3,16 +3,28 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus } from "lucide-react";
-import { getRecentlyViewed, type RecentlyViewedItem } from "@/features/products/utils/recentlyViewed";
+import { Plus, Loader2 } from "lucide-react";
+import {
+  getRecentlyViewed,
+  type RecentlyViewedItem,
+} from "@/features/products/utils/recentlyViewed";
+import { useAddToCart } from "@/features/cart/hooks/useAddToCart";
 
 const GLASS =
   "bg-white/65 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.05)]";
-const HOVER_LIFT = "transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl";
+const HOVER_LIFT =
+  "transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl";
+
+function firstThreeWords(text?: string) {
+  if (!text) return "Product";
+  return text.trim().split(/\s+/).slice(0, 3).join(" ");
+}
 
 export default function RecentlyViewedStrip() {
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState<RecentlyViewedItem[]>([]);
+
+  const { mutate: addToCart, isPending: isAdding } = useAddToCart();
 
   useEffect(() => {
     setMounted(true);
@@ -39,28 +51,39 @@ export default function RecentlyViewedStrip() {
           <Link
             key={p.id}
             href={`/product/${p.id}`}
-            className={`${GLASS} ${HOVER_LIFT} rounded-3xl p-4 block`}
+            className={`${GLASS} ${HOVER_LIFT} block rounded-3xl p-4`}
           >
             <div className="relative h-32 overflow-hidden rounded-2xl bg-white/40">
               <Image src={p.image} alt={p.title} fill className="object-cover" />
             </div>
 
             <p className="mt-3 text-xs text-zinc-500">{p.category ?? "Product"}</p>
-            <h3 className="mt-1 line-clamp-2 text-sm font-extrabold text-zinc-900">{p.title}</h3>
 
-            <div className="mt-3 flex items-center justify-between">
+            <h3 className="mt-1 line-clamp-1 text-sm font-extrabold text-zinc-900">
+              {firstThreeWords(p.title)}
+            </h3>
+
+            <div className="mt-3 flex items-center justify-between gap-3">
               <span className="text-base font-extrabold text-zinc-900">
                 {p.price.toLocaleString("en-US")} EGP
               </span>
 
-              {/* زر UI (لسه cart logic لاحقًا) */}
               <button
                 type="button"
-                onClick={(e) => e.preventDefault()}
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--brand-600)] text-white transition-all duration-300 ease-out hover:scale-105 hover:bg-[var(--brand-700)] active:scale-95"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  addToCart({ productId: p.id, count: 1 });
+                }}
+                disabled={isAdding}
+                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--brand-600)] text-white transition-all duration-300 ease-out hover:scale-105 hover:bg-[var(--brand-700)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Add to cart"
               >
-                <Plus className="h-5 w-5" />
+                {isAdding ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Plus className="h-5 w-5" />
+                )}
               </button>
             </div>
           </Link>

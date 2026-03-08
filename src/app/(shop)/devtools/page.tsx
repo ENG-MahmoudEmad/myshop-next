@@ -4,11 +4,26 @@ import { useEffect, useState } from "react";
 
 export default function Page() {
   const [baseUrl, setBaseUrl] = useState<string>("");
+  const [isDesktop, setIsDesktop] = useState<boolean>(false);
 
   useEffect(() => {
-    // بعد ما الصفحة تعمل mount على المتصفح
     setBaseUrl(window.location.origin);
+
+    const isMobile =
+      /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(
+        navigator.userAgent
+      );
+
+    const smallScreen = window.innerWidth < 1024;
+
+    if (!isMobile && !smallScreen) {
+      setIsDesktop(true);
+    }
   }, []);
+
+  if (!isDesktop) {
+    return null; // لا تعرض الصفحة على الجوال
+  }
 
   const canUse = baseUrl.length > 0;
 
